@@ -1,0 +1,17 @@
+**/node_modules
+**/dist
+**/build
+.turbo
+.git
+.github
+.vscode
+.idea
+*.log
+backups
+scratch
+agency-agents-temp
+*.csv
+*.txt
+*.md
+!package.json
+!package-lock.json

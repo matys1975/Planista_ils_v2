@@ -1,0 +1,62 @@
+name: CI – Lint, Test & Build
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: Lint → Test → Build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: planista
+          POSTGRES_PASSWORD: planista_dev
+          POSTGRES_DB: plan_zajec
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://planista:planista_dev@localhost:5432/plan_zajec
+      JWT_SECRET: ci-test-secret-key-do-not-use-in-prod
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        working-directory: packages/database
+
+      - name: Run DB Migrations
+        run: npx prisma db push --skip-generate
+        working-directory: packages/database
+
+      - name: Lint (web)
+        run: npm run lint --workspace=web
+
+      - name: Run Tests
+        run: npm run test --workspaces --if-present
+
+      - name: Build
+        run: npm run build

@@ -1,0 +1,1 @@
+export { DictionarySemestersPage } from './DictionarySemestersPage';

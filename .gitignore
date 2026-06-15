@@ -1,0 +1,80 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+.next/
+.turbo/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma (keep migrations, ignore generated client)
+packages/database/prisma/generated/
+
+# Temp/scratch files
+scratch/
+agency-agents-temp/
+*.csv
+*.txt
+
+# Logs
+*.log
+npm-debug.log*
+
+# Backups and database dumps
+backups/
+*.sql
+*.zip
+*.rar
+*.7z
+*.bat
+
+# Internal documentation and plans
+przenoszenie_na_innego_kompa.md
+zasady.md
+plan.md
+AUDYT_BEZPIECZENSTWA.md
+
+# Deployment package
+planista-deploy/
+scratch_hash.js
+
+# AI Agents & Skills
+.agents/
+
+# Diagnostics, repair scripts, database dumps and test utilities
+packages/database/assign_all_to_ils.ts
+packages/database/audit.ts
+packages/database/check_*.ts
+packages/database/check_*.js
+packages/database/check-*.ts
+packages/database/count_*.ts
+packages/database/create-*.ts
+packages/database/db-repair.ts
+packages/database/diag.ts
+packages/database/final_diag.ts
+packages/database/list_*.ts
+packages/database/merge_duplicates.ts
+packages/database/repair_*.ts
+pdf2txt.py
+teachers.json
+teachers_list.json
+test_*.js
+verify_db.js
+check_db.js
+merge_duplicates.js
+kody_jednostek

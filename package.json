@@ -1,0 +1,26 @@
+{
+  "name": "plan-zajec-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"apps/*/src/**/*.{ts,tsx}\" --ignore-unknown",
+    "format:check": "prettier --check \"apps/*/src/**/*.{ts,tsx}\" --ignore-unknown",
+    "test": "turbo run test",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "husky": "^9.1.7",
+    "turbo": "^2.1.2",
+    "typescript": "^5.6.2"
+  },
+  "packageManager": "npm@10.8.2"
+}

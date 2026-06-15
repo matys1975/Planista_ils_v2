@@ -1,0 +1,305 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "windows"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enumy ──────────────────────────────────────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  DEAN
+  ADMIN
+  PLANNER
+  VIEWER
+}
+
+model Faculty {
+  id        String   @id @default(uuid())
+  name      String
+  shortCode String?  @unique // np. "WN" — Wydział Neofilologii
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  institutes Institute[]
+  users      User[]
+}
+
+model Institute {
+  id        String   @id @default(uuid())
+  name      String
+  shortCode String?  @unique // np. "ILS", "IFG" — krótki identyfikator
+  usosCode  String?  @unique // Kod USOS jednostki, np. "990020500"
+  facultyId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  faculty     Faculty? @relation(fields: [facultyId], references: [id])
+
+  users       User[]
+  courses     Course[]
+  teachers    Teacher[]
+  rooms       Room[]
+  groups      Group[]
+  majors      Major[]
+  allocations CourseAllocation[]
+  entries     ScheduleEntry[]
+  staffingRequests StaffingRequest[]
+
+  @@index([facultyId])
+}
+
+enum WeekType {
+  A   // Parzyste
+  B   // Nieparzyste
+  AB  // Co tydzień
+}
+
+// ─── Modele ─────────────────────────────────────────────────────────────────
+
+model Semester {
+  id        String   @id @default(uuid())
+  name      String
+  year      Int
+  type      String   // zimowy | letni (zachowujemy String dla kompatybilności z frontendem)
+  dateStart DateTime
+  dateEnd   DateTime
+  isLocked  Boolean  @default(false)
+  version   Int      @default(0)
+  courses   Course[]
+  groups    Group[]
+  entries   ScheduleEntry[]
+  staffingRequests StaffingRequest[]
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         Role      @default(VIEWER)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  version      Int       @default(0)
+  instituteId  String?
+  institute    Institute? @relation(fields: [instituteId], references: [id])
+  facultyId    String?
+  faculty      Faculty?   @relation(fields: [facultyId], references: [id])
+
+  @@index([facultyId])
+}
+
+model Course {
+  id          String   @id @default(uuid())
+  code        String
+  name        String
+  type        String   // W | C | L | S | Pr | K (Wykład, Ćw, Lab, Seminarium, Praktyki, Konwersacje)
+  ectsCredits Int
+  hoursTotal  Int      @default(0)  // Łączna liczba godzin w semestrze (dla 1 grupy)
+  targetGroupsCount Int @default(1) // Oczekiwana liczba grup dla tego przedmiotu
+  semesterId  String
+
+  usosId      String?  // Kod przedmiotu w USOS
+  usosUnitId  String?  // Wewnętrzny ID unitu w USOS
+
+  version     Int      @default(0)
+  semester    Semester @relation(fields: [semesterId], references: [id])
+  instituteId String?
+  institute   Institute? @relation(fields: [instituteId], references: [id])
+  
+  majors      CourseOnMajor[]
+  
+  entries     ScheduleEntry[]
+  allocations CourseAllocation[]
+  staffingRequests StaffingRequest[]
+
+  @@unique([code, semesterId])
+  @@index([semesterId])
+}
+
+model CourseOnMajor {
+  courseId String
+  majorId  String
+  year     Int
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  major  Major  @relation(fields: [majorId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, majorId, year])
+  @@index([courseId])
+  @@index([majorId, year])  // Kompozytowy: pokrywa filtrowanie po kierunku + roku
+}
+
+model Teacher {
+  id          String   @id @default(uuid())
+  firstName   String
+  lastName    String
+  title       String
+  email       String   @unique
+  unit        String   @default("Instytut Lingwistyki Stosowanej")
+  pensumLimit Int      @default(210)
+  usosId      String?  // ID użytkownika w USOS
+
+  version     Int      @default(0)
+  instituteId String?
+  institute   Institute? @relation(fields: [instituteId], references: [id])
+  entries     ScheduleEntry[]
+  allocations CourseAllocation[]
+
+  @@index([lastName])  // Sortowanie w raportach pensum
+}
+
+model Room {
+  id        String   @id @default(uuid())
+  building  String
+  number    String
+  capacity  Int
+  type      String
+  equipment String[] // Możemy zapisywać jako JSON/Array jeśli DB to PostgreSQL
+  usosId    String?  // ID sali w USOS
+
+  version   Int      @default(0)
+  instituteId String?
+  institute   Institute? @relation(fields: [instituteId], references: [id])
+  entries   ScheduleEntry[]
+}
+
+model Group {
+  id         String   @id @default(uuid())
+  name       String
+  majorId    String?  // Relacja do słownika kierunków
+  major      Major?   @relation(fields: [majorId], references: [id])
+  majorName  String?  // Opcjonalny tekst (np. dla grup spoza słownika)
+  
+  degree     String   // I stopnia | II stopnia | podyplomowe itp.
+  year       Int
+  size       Int
+  semesterId String
+  version    Int      @default(0)
+  
+  instituteId String?
+  institute   Institute? @relation(fields: [instituteId], references: [id])
+  semester   Semester @relation(fields: [semesterId], references: [id])
+  
+  entries    ScheduleEntryGroup[]
+  allocations CourseAllocationGroup[]
+
+  @@index([semesterId])
+  @@index([majorId, year, name])  // Pokrywa orderBy z GET /api/v1/groups
+}
+
+// Relacja wiele-do-wielu z atrybutami (gdyby były potrzebne) lub implicitly. 
+// Robimy cross table explicit dla lepszej kontroli.
+model ScheduleEntryGroup {
+  entryId String
+  groupId String
+  entry   ScheduleEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  group   Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([entryId, groupId])
+  @@index([groupId])
+}
+
+model ScheduleEntry {
+  id         String   @id @default(uuid())
+  semesterId String
+  courseId   String
+  teacherId  String
+  roomId     String
+  startTime  String   // np format "08:00"
+  endTime    String   // np format "09:30"
+  dayOfWeek  Int      // 1 = Poniedziałek, 5 = Piątek
+  weekType   WeekType @default(AB)
+  isRecurring Boolean @default(true)
+  classType  String?  // Nadpisanie typu zajęć (W/C/L/S/Pr/K) przypisane z alokacji
+
+  semester Semester @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  teacher  Teacher  @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  room     Room     @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+  instituteId String?
+  institute   Institute? @relation(fields: [instituteId], references: [id])
+
+  groups   ScheduleEntryGroup[]
+
+  @@index([semesterId, dayOfWeek, roomId, teacherId])  // Pokrywający indeks dla checkCollisions()
+  @@index([teacherId])
+  @@index([roomId])
+  @@index([courseId])
+  @@index([instituteId])
+}
+
+model CourseAllocation {
+  id            String   @id @default(uuid())
+  courseId      String
+  teacherId     String
+  assignedHours Int      @default(30)  // Ile godzin prowadzący dostaje z tego przedmiotu
+  classType     String?  // Nadpisanie typu zajęć (W/C/L/S/Pr/K) — null = dziedziczy z Course.type
+
+  instituteId   String?
+  institute     Institute? @relation(fields: [instituteId], references: [id])
+
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacher Teacher @relation(fields: [teacherId], references: [id])
+
+  groups CourseAllocationGroup[]
+
+  @@index([courseId, teacherId])  // Indeks kompozytowy dla szybkich zapytań (duplikaty dozwolone – różne grupy)
+  @@index([teacherId])
+}
+
+model CourseAllocationGroup {
+  allocationId String
+  groupId      String
+
+  allocation CourseAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  group      Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([allocationId, groupId])
+  @@index([groupId])
+}
+
+model Major {
+  id           String   @id @default(uuid())
+  code         String   @unique // e.g., 'S1-LSN'
+  name         String   // e.g., 'Lingwistyka stosowana (język niemiecki z angielskim)'
+  degree       String   // e.g., 'I stopnia', 'II stopnia'
+  years        Int      // e.g., 3
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  instituteId  String?
+  institute    Institute? @relation(fields: [instituteId], references: [id])
+  
+  courses      CourseOnMajor[]
+  groups       Group[]
+}
+
+model StaffingRequest {
+  id              String   @id @default(uuid())
+  requestedGroups Int
+  status          String   @default("PENDING") // PENDING, IN_PROGRESS, RESOLVED, REJECTED
+  notes           String?
+  adminNotes      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  courseId        String
+  course          Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  instituteId     String
+  institute       Institute @relation(fields: [instituteId], references: [id], onDelete: Cascade)
+  
+  semesterId      String
+  semester        Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+
+  @@index([instituteId])
+  @@index([courseId])
+  @@index([semesterId])
+}
