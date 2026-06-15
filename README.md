@@ -1,7 +1,24 @@
 # Planista ILS v2
 
-System zarządzania pensum i planowania zajęć dla Instytutu Lingwistyki Stosowanej.
+System chmurowy służący do planowania zajęć, zarządzania obciążeniami dydaktycznymi (pensum) oraz optymalizacji wykorzystania sal (oryginalnie zbudowany dla Instytutu Lingwistyki Stosowanej, obecnie wspierający logikę wielojednostkową w ramach całego Wydziału Neofilologii).
 
+## 🌟 Opis Systemu
+
+Planista to aplikacja zaprojektowana z myślą o ergonomii, szybkości i obsłudze skomplikowanych reguł uniwersyteckich. Zastępuje tradycyjne arkusze kalkulacyjne centralną, wielodostępną bazą danych.
+
+### Główne Funkcjonalności:
+* **Wizualna Siatka Zajęć (Schedule Grid):** Rozbudowany interfejs drag&drop do układania planów zajęć, wykrywający kolizje terminów (pracowników i sal) w czasie rzeczywistym.
+* **Kalkulator Obciążeń (Pensum):** Automatyczne sumowanie godzin dydaktycznych pracowników, obsługujące różne rodzaje zatrudnienia (etat, zlecenie, zastępstwa) z możliwością generowania podsumowań do druku.
+* **Integracja z USOS:** Bezpośrednie połączenie pozwalające na zautomatyzowany import i synchronizację przedmiotów i programów z centralną bazą uniwersytetu.
+* **Zapotrzebowania Kadrowe (Wakaty):** Zintegrowany workflow między Instytutami a Dziekanatem do zgłaszania, weryfikowania i rozwiązywania problemów braku prowadzących.
+* **Panel Dziekański (Dean Dashboard):** Analityczny widok pozwalający Władzom Wydziału monitorować zasoby wszystkich podległych instytutów, z opcjami eksportu danych statystycznych.
+
+### Role i Uprawnienia (RBAC):
+System wykorzystuje ścisłą kontrolę dostępu opartą na rolach i przynależności organizacyjnej:
+* **PLANNER** (Układający Plan) – dostęp operacyjny do edycji zajęć i przydziałów wyłącznie w obrębie własnego instytutu.
+* **INSTITUTE_ADMIN** (Kierownictwo) – widok na pełne obciążenia instytutu, zarządzanie przydziałami, delegowanie zapotrzebowań do dziekanatu.
+* **DEAN** (Dziekanat) – dostęp do danych ("read-only" dla przydziałów) ze wszystkich instytutów na Wydziale, z panelem akceptacji Wakatów i potężnymi statystykami.
+* **SUPER_ADMIN** (Administrator) – konfiguracja struktury uczelni, pełne zarządzanie użytkownikami oraz pobieranie zrzutów kopii bezpieczeństwa (Backup).
 ## 📥 Pobranie projektu
 
 Aby sklonować repozytorium na nowy komputer, wykonaj:
