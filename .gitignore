@@ -44,6 +44,10 @@ backups/
 *.bat
 
 # Internal documentation and plans
+plan_dziekan.md
+RozbudowaPlanisty.md
+NoweFunkcje.md
+INSTRUKCJA_LAika_Windows11_Docker.md
 przenoszenie_na_innego_kompa.md
 zasady.md
 plan.md
@@ -57,6 +61,7 @@ scratch_hash.js
 .agents/
 
 # Diagnostics, repair scripts, database dumps and test utilities
+merge_ils_data.js
 packages/database/assign_all_to_ils.ts
 packages/database/audit.ts
 packages/database/check_*.ts
