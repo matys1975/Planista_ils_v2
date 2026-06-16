@@ -227,8 +227,16 @@ export function DictionaryCourses() {
         ? Array.from(new Set(c.allocations.map((a: any) => `${a.teacher?.title || ''} ${a.teacher?.firstName || ''} ${a.teacher?.lastName || ''}`.trim()).filter(Boolean))).join(', ')
         : 'Brak przypisanych prowadzących';
 
+      const majorName = c.majors?.map((m: any) => m.major?.name).filter(Boolean).join(', ') || 'Brak kierunku';
+      const yearOfStudy = c.majors?.map((m: any) => m.year).filter(Boolean).join(', ') || '-';
+
       return {
         ...c,
+        majorName,
+        yearOfStudy,
+        classType: c.type,
+        hours: c.hoursTotal,
+        groupCount: c.targetGroupsCount,
         assignedTeachers
       };
     });
