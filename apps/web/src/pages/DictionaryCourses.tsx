@@ -1,10 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useState, useMemo, useEffect } from 'react';
-import { BookOpen, Plus, Printer, AlertCircle, CheckCircle2, Clock, ArrowUpCircle } from 'lucide-react';
+import { BookOpen, Plus, Printer, AlertCircle, CheckCircle2, Clock, ArrowUpCircle, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Course, Semester } from '../types/models';
 import { CsvUploadModal } from '@/components/CsvUploadModal';
+import { exportToCsv } from '../utils/exportToCsv';
 import { parseCourseCode } from '../utils/courseUtils';
 import { fetchApi } from '../lib/api';
 import { CourseFormSheet, type CourseFormData } from '../components/courses/CourseFormSheet';
@@ -220,6 +221,23 @@ export function DictionaryCourses() {
     window.print();
   };
 
+  const handleExportCSV = () => {
+    exportToCsv(
+      filteredCourses,
+      {
+        code: 'Kod Przedmiotu',
+        name: 'Nazwa',
+        majorName: 'Kierunek',
+        yearOfStudy: 'Rok Studiów',
+        classType: 'Typ Zajęć',
+        hours: 'Liczba Godzin',
+        groupCount: 'Liczba Grup',
+        studentsCount: 'Liczba Studentów'
+      },
+      `Przedmioty_Eksport_${new Date().toISOString().split('T')[0]}.csv`
+    );
+  };
+
   // ─── Render ────────────────────────────────────────────────────────────────
   const selectedMajorObj = majorsData?.data?.find((m: any) => m.code === activeMajorTab);
   const currentAllocatingCourse = allocatingCourse
@@ -261,6 +279,9 @@ export function DictionaryCourses() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8 text-xs font-bold px-3 gap-1.5 hover:bg-muted" onClick={handleExportCSV}>
+            <Download className="h-3.5 w-3.5" /> Eksportuj (CSV)
+          </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs font-bold px-3 gap-1.5 hover:bg-muted" onClick={handlePrint}>
             <Printer className="h-3.5 w-3.5" /> Drukuj
           </Button>
