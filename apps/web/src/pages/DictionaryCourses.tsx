@@ -4,7 +4,6 @@ import { useState, useMemo, useEffect } from 'react';
 import { BookOpen, Plus, Printer, AlertCircle, CheckCircle2, Clock, ArrowUpCircle, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Course, Semester } from '../types/models';
-import { CsvUploadModal } from '@/components/CsvUploadModal';
 import { exportToCsv } from '../utils/exportToCsv';
 import { parseCourseCode } from '../utils/courseUtils';
 import { fetchApi } from '../lib/api';
@@ -372,17 +371,6 @@ export function DictionaryCourses() {
             <CloneSemesterModal
               targetSemesterId={activeSemesterId || ''}
               onSuccess={invalidateCourses}
-            />
-            <div className="w-[1px] h-3 bg-border mx-1" />
-            <CsvUploadModal
-              title="Import"
-              expectedHeaders={['code', 'name']}
-              templateData={csvTemplate}
-              onUpload={async (data) => { await bulkCreateMutation.mutateAsync(data); }}
-              isLoading={bulkCreateMutation.isPending}
-              delimiter={'\t'}
-              acceptExtensions=".csv,.tsv,.txt"
-              templateFilename="Szablon_Import.csv"
             />
             <div className="w-[1px] h-3 bg-border mx-1" />
             <UsosImportDialog

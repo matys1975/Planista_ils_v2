@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Users, Plus, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Teacher } from '../types/models';
-import { CsvUploadModal } from '@/components/CsvUploadModal';
 import { exportToCsv } from '../utils/exportToCsv';
 import { fetchApi } from '../lib/api';
 import { TeacherFormSheet, type TeacherFormData } from '../components/teachers/TeacherFormSheet';
@@ -203,16 +202,9 @@ export function DictionaryTeachers() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 text-xs font-bold px-3 gap-1.5" onClick={handleExportCSV}>
+            <Button variant="outline" size="sm" className="h-8 text-xs font-bold px-3 gap-1.5 hover:bg-muted" onClick={handleExportCSV}>
               <Download className="h-3.5 w-3.5" /> Eksportuj (CSV)
             </Button>
-            <CsvUploadModal
-              title="Import"
-              expectedHeaders={['firstName', 'lastName', 'title', 'email']}
-              templateData={csvTemplate}
-              onUpload={async (data) => { await bulkCreateMutation.mutateAsync(data); }}
-              isLoading={bulkCreateMutation.isPending}
-            />
             <Button size="sm" className="h-8 text-xs font-bold px-4 gap-1.5 bg-primary hover:bg-primary/90 shadow-md shadow-primary/10" onClick={openCreate}>
               <Plus className="h-3.5 w-3.5" /> Dodaj
             </Button>
