@@ -140,14 +140,26 @@ export function DictionaryTeachers() {
   };
 
   const handleExportCSV = () => {
+    const dataToExport = filteredTeachers.map((t: any) => {
+      const assignedCourses = t.allocations
+        ? Array.from(new Set(t.allocations.map((a: any) => a.course?.name).filter(Boolean))).join(', ')
+        : 'Brak przypisanych przedmiotów';
+      
+      return {
+        ...t,
+        assignedCourses
+      };
+    });
+
     exportToCsv(
-      filteredTeachers,
+      dataToExport,
       {
         firstName: 'Imię',
         lastName: 'Nazwisko',
         title: 'Tytuł/Stopień',
         email: 'Email',
         unit: 'Jednostka',
+        assignedCourses: 'Prowadzi Przedmioty',
         pensumLimit: 'Limit Pensum (Godziny)'
       },
       `Prowadzacy_Eksport_${new Date().toISOString().split('T')[0]}.csv`

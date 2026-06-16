@@ -222,8 +222,19 @@ export function DictionaryCourses() {
   };
 
   const handleExportCSV = () => {
+    const dataToExport = filteredCourses.map((c: any) => {
+      const assignedTeachers = c.allocations
+        ? Array.from(new Set(c.allocations.map((a: any) => `${a.teacher?.title || ''} ${a.teacher?.firstName || ''} ${a.teacher?.lastName || ''}`.trim()).filter(Boolean))).join(', ')
+        : 'Brak przypisanych prowadzących';
+
+      return {
+        ...c,
+        assignedTeachers
+      };
+    });
+
     exportToCsv(
-      filteredCourses,
+      dataToExport,
       {
         code: 'Kod Przedmiotu',
         name: 'Nazwa',
@@ -232,7 +243,7 @@ export function DictionaryCourses() {
         classType: 'Typ Zajęć',
         hours: 'Liczba Godzin',
         groupCount: 'Liczba Grup',
-        studentsCount: 'Liczba Studentów'
+        assignedTeachers: 'Prowadzący (Przypisani)'
       },
       `Przedmioty_Eksport_${new Date().toISOString().split('T')[0]}.csv`
     );
