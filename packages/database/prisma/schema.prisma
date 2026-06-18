@@ -82,6 +82,7 @@ model User {
   passwordHash String
   name         String
   role         Role      @default(VIEWER)
+  mustChangePassword Boolean @default(false)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt

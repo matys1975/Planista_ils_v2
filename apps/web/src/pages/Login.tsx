@@ -43,8 +43,8 @@ export function LoginPage() {
       }
 
       queryClient.clear();
-      loginFn(body.role, body.name, body.instituteId || null, body.facultyId || null);
-      navigate({ to: '/' });
+      loginFn(body.role, body.name, body.instituteId || null, body.facultyId || null, Boolean(body.mustChangePassword));
+      navigate({ to: body.mustChangePassword ? '/profil' : '/' });
     } catch (err: any) {
       setErrorMsg(err.message || 'Nie można połączyć się z serwerem API');
     }

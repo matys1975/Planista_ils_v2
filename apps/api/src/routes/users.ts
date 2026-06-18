@@ -7,6 +7,20 @@ import bcrypt from 'bcrypt';
 import { SALT_ROUNDS } from '../config/constants';
 import type { Prisma } from '@plan/database';
 
+const passwordValidationMessage = 'Haslo musi miec min. 10 znakow oraz zawierac mala litere, wielka litere, cyfre i znak specjalny.';
+
+const strongPasswordSchema = z.string()
+  .min(10, passwordValidationMessage)
+  .regex(/[a-z]/, passwordValidationMessage)
+  .regex(/[A-Z]/, passwordValidationMessage)
+  .regex(/[0-9]/, passwordValidationMessage)
+  .regex(/[^A-Za-z0-9]/, passwordValidationMessage);
+
+function validateStrongPassword(password: string): string | null {
+  const result = strongPasswordSchema.safeParse(password);
+  return result.success ? null : passwordValidationMessage;
+}
+
 const createUserSchema = z.object({
   email: z.string().email('Nieprawidłowy adres e-mail'),
   password: z.string().min(6, 'Hasło musi mieć min. 6 znaków'),
@@ -75,6 +89,10 @@ export default async function usersRoutes(server: FastifyInstance) {
       }
 
       const payload = createUserSchema.parse(request.body);
+      const passwordError = validateStrongPassword(payload.password);
+      if (passwordError) {
+        return reply.code(400).send({ error: passwordError });
+      }
 
       // Audyt #3: Zapobiegaj eskalacji — tylko SUPER_ADMIN może nadawać rolę SUPER_ADMIN
       const currentUser = request.user as { role: string };
@@ -103,6 +121,7 @@ export default async function usersRoutes(server: FastifyInstance) {
           name: payload.name,
           role: payload.role,
           passwordHash,
+          mustChangePassword: true,
           ...(instituteId ? { instituteId } : {}),
         },
         select: {
@@ -144,6 +163,12 @@ export default async function usersRoutes(server: FastifyInstance) {
       }
 
       const payload = adminUpdateUserSchema.parse(request.body);
+      if (payload.newPassword) {
+        const passwordError = validateStrongPassword(payload.newPassword);
+        if (passwordError) {
+          return reply.code(400).send({ error: passwordError });
+        }
+      }
 
       // Audyt #3: Zapobiegaj eskalacji
       const currentUser = request.user as { role: string };
@@ -158,6 +183,7 @@ export default async function usersRoutes(server: FastifyInstance) {
       if (payload.role) updateData.role = payload.role;
       if (payload.newPassword) {
         updateData.passwordHash = await bcrypt.hash(payload.newPassword, SALT_ROUNDS);
+        updateData.mustChangePassword = true;
       }
 
       // Tylko SUPER_ADMIN może zmienić przypisanie do instytutu
@@ -221,6 +247,12 @@ export default async function usersRoutes(server: FastifyInstance) {
     const currentUser = request.user as { id: string };
     try {
       const payload = updateProfileSchema.parse(request.body);
+      if (payload.newPassword) {
+        const passwordError = validateStrongPassword(payload.newPassword);
+        if (passwordError) {
+          return reply.code(400).send({ error: passwordError });
+        }
+      }
       const updateData: Prisma.UserUpdateInput = {};
 
       if (payload.name) updateData.name = payload.name;
@@ -241,10 +273,12 @@ export default async function usersRoutes(server: FastifyInstance) {
         updateData.passwordHash = await bcrypt.hash(payload.newPassword, SALT_ROUNDS);
       }
 
+      if (payload.newPassword) updateData.mustChangePassword = false;
+
       const updated = await prisma.user.update({
         where: { id: currentUser.id },
         data: updateData,
-        select: { id: true, email: true, name: true, role: true }
+        select: { id: true, email: true, name: true, role: true, instituteId: true, facultyId: true, mustChangePassword: true }
       });
       return reply.send({ data: updated });
     } catch (err) {

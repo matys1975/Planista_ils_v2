@@ -2,7 +2,7 @@ import { FastifyReply, FastifyRequest } from 'fastify';
 
 /**
  * Middleware RBAC — sprawdza, czy zalogowany użytkownik posiada jedną z wymaganych ról.
- * SUPER_ADMIN i DEAN automatycznie przechodzą każdy check.
+ * SUPER_ADMIN automatycznie przechodzi każdy check.
  * Użycie: preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER')]
  */
 export function requireRole(...roles: string[]) {
@@ -11,8 +11,8 @@ export function requireRole(...roles: string[]) {
     if (!user) {
       return reply.code(403).send({ error: 'Brak uprawnień do wykonania tej operacji.' });
     }
-    // SUPER_ADMIN i DEAN bypassują checki ról
-    if (user.role === 'SUPER_ADMIN' || user.role === 'DEAN') return;
+    // SUPER_ADMIN bypassuje checki ról. DEAN musi być dopuszczony jawnie.
+    if (user.role === 'SUPER_ADMIN') return;
     if (!roles.includes(user.role)) {
       return reply.code(403).send({ error: 'Brak uprawnień do wykonania tej operacji.' });
     }

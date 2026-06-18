@@ -22,6 +22,77 @@ const createCourseSchema = z.object({
 const updateCourseSchema = createCourseSchema.partial();
 const bulkCourseSchema = z.array(createCourseSchema);
 
+function scopedCourseWhere(scope: ReturnType<typeof extractFullScope>) {
+  return buildInstituteWhere(scope) as any;
+}
+
+async function getCourseInScope(id: string, scope: ReturnType<typeof extractFullScope>) {
+  return prisma.course.findFirst({
+    where: { id, ...scopedCourseWhere(scope) },
+    select: { id: true, instituteId: true },
+  });
+}
+
+async function getAllocationInScope(id: string, scope: ReturnType<typeof extractFullScope>) {
+  const courseWhere = scopedCourseWhere(scope);
+  return prisma.courseAllocation.findFirst({
+    where: {
+      id,
+      ...(Object.keys(courseWhere).length > 0 ? { course: courseWhere } : {}),
+    },
+    select: { id: true, courseId: true },
+  });
+}
+
+async function ensureAllocationResourcesInScope(
+  payload: { teacherId?: string; groupIds?: string[] },
+  scope: ReturnType<typeof extractFullScope>,
+  reply: any
+) {
+  if (payload.teacherId) {
+    const teacherWhere: any = { id: payload.teacherId };
+    if (!scope.isSuperAdmin) {
+      if (scope.facultyId) {
+        teacherWhere.institute = { facultyId: scope.facultyId };
+      } else if (scope.instituteId) {
+        const institute = await prisma.institute.findUnique({
+          where: { id: scope.instituteId },
+          select: { facultyId: true },
+        });
+        teacherWhere.OR = [
+          { instituteId: scope.instituteId },
+          ...(institute?.facultyId ? [{ institute: { facultyId: institute.facultyId } }] : []),
+          { institute: { shortCode: 'UCP' } },
+          { instituteId: null },
+        ];
+      } else {
+        teacherWhere.instituteId = '__NO_ACCESS__';
+      }
+    }
+
+    const teacher = await prisma.teacher.findFirst({
+      where: teacherWhere,
+      select: { id: true },
+    });
+    if (!teacher) {
+      reply.code(403).send({ error: 'Brak dostępu do wskazanego prowadzącego.' });
+      return false;
+    }
+  }
+
+  if (payload.groupIds && payload.groupIds.length > 0) {
+    const groupsCount = await prisma.group.count({
+      where: { id: { in: payload.groupIds }, ...scopedCourseWhere(scope) },
+    });
+    if (groupsCount !== new Set(payload.groupIds).size) {
+      reply.code(403).send({ error: 'Brak dostępu do co najmniej jednej wskazanej grupy.' });
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export default async function coursesRoutes(server: FastifyInstance) {
   server.get('/api/v1/courses', { preValidation: [server.authenticate] }, async (request, reply) => {
     const { semesterId } = request.query as { semesterId?: string };
@@ -173,7 +244,11 @@ export default async function coursesRoutes(server: FastifyInstance) {
   server.post('/api/v1/courses/:id/allocations', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER')] }, async (request, reply) => {
     const courseId = parseIdParam(request, reply);
     try {
+      const scope = extractFullScope(request);
       const payload = allocationSchema.parse(request.body);
+      const course = await getCourseInScope(courseId, scope);
+      if (!course) return reply.code(404).send({ error: 'Nie znaleziono przedmiotu lub brak dostępu.' });
+      if (!(await ensureAllocationResourcesInScope(payload, scope, reply))) return;
 
       const allocation = await prisma.courseAllocation.create({
         data: {
@@ -181,6 +256,7 @@ export default async function coursesRoutes(server: FastifyInstance) {
           teacherId: payload.teacherId,
           assignedHours: payload.assignedHours,
           classType: payload.classType ?? null,
+          ...(course.instituteId ? { instituteId: course.instituteId } : {}),
           groups: {
             create: payload.groupIds.map(groupId => ({
               group: { connect: { id: groupId } }
@@ -198,6 +274,10 @@ export default async function coursesRoutes(server: FastifyInstance) {
   server.delete('/api/v1/courses/allocations/:allocId', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER')] }, async (request, reply) => {
     const allocId = parseParam(request, 'allocId', reply);
     try {
+      const scope = extractFullScope(request);
+      const allocation = await getAllocationInScope(allocId, scope);
+      if (!allocation) return reply.code(404).send({ error: 'Nie znaleziono przydziału lub brak dostępu.' });
+
       // CourseAllocationGroup ma onDelete: Cascade w schemacie Prisma,
       // więc grupy zostaną usunięte automatycznie razem z alokacją.
       await prisma.courseAllocation.delete({ where: { id: allocId } });
@@ -221,7 +301,11 @@ export default async function coursesRoutes(server: FastifyInstance) {
   server.put('/api/v1/courses/allocations/:allocId', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER')] }, async (request, reply) => {
     const allocId = parseParam(request, 'allocId', reply);
     try {
+      const scope = extractFullScope(request);
       const payload = updateAllocationSchema.parse(request.body);
+      const allocation = await getAllocationInScope(allocId, scope);
+      if (!allocation) return reply.code(404).send({ error: 'Nie znaleziono przydziału lub brak dostępu.' });
+      if (!(await ensureAllocationResourcesInScope(payload, scope, reply))) return;
 
       // Atomowa aktualizacja w transakcji — chroni przed niespójnymi danymi
       const updated = await prisma.$transaction(async (tx) => {

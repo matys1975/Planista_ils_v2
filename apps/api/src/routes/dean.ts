@@ -753,6 +753,7 @@ export default async function deanRoutes(server: FastifyInstance) {
                     name: payload.name,
                     role: payload.role,
                     passwordHash,
+                    mustChangePassword: true,
                     instituteId: payload.instituteId,
                     facultyId: payload.facultyId,
                 },
@@ -811,7 +812,10 @@ export default async function deanRoutes(server: FastifyInstance) {
             if (payload.role) updateData.role = payload.role;
             if (payload.instituteId) updateData.instituteId = payload.instituteId;
             if (payload.facultyId) updateData.facultyId = payload.facultyId;
-            if (payload.newPassword) updateData.passwordHash = await bcrypt.hash(payload.newPassword, SALT_ROUNDS);
+            if (payload.newPassword) {
+                updateData.passwordHash = await bcrypt.hash(payload.newPassword, SALT_ROUNDS);
+                updateData.mustChangePassword = true;
+            }
 
             const user = await prisma.user.update({
                 where: { id },
@@ -900,7 +904,7 @@ export default async function deanRoutes(server: FastifyInstance) {
             const passwordHash = await bcrypt.hash(payload.newPassword, SALT_ROUNDS);
             await prisma.user.update({
                 where: { id },
-                data: { passwordHash },
+                data: { passwordHash, mustChangePassword: true },
             });
 
             return reply.send({ success: true, message: 'Hasło zostało zresetowane.' });

@@ -18,6 +18,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -93,12 +94,16 @@ export function DictionaryMajors({ hideHeader, filterInstituteId }: { hideHeader
   };
 
   const openCreate = () => {
+    createMutation.reset();
+    updateMutation.reset();
     setEditingMajor(null);
     reset({ degree: 'I stopnia', years: 3, code: '', name: '' });
     setIsOpen(true);
   };
 
   const openEdit = (major: any) => {
+    createMutation.reset();
+    updateMutation.reset();
     setEditingMajor(major);
     reset({
       code: major.code,
@@ -146,8 +151,16 @@ export function DictionaryMajors({ hideHeader, filterInstituteId }: { hideHeader
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingMajor ? 'Edytuj kierunek' : 'Dodaj nowy kierunek'}</DialogTitle>
+            <DialogDescription>
+              Kod kierunku musi być unikalny w całym systemie.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-4">
+            {(createMutation.error || updateMutation.error) && (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {(createMutation.error || updateMutation.error)?.message}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="code">Kod (np. S1-LSN)</Label>

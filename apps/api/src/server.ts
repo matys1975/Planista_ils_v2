@@ -99,6 +99,14 @@ const start = async () => {
       return false;
     }
 
+    function isPasswordChangePath(url: string): boolean {
+      return [
+        '/api/v1/auth/me',
+        '/api/v1/auth/profile',
+        '/api/v1/auth/logout',
+      ].includes(url);
+    }
+
     /**
      * Ustawia nagłówki zapobiegające cache'owaniu odpowiedzi.
      * Stosowane dla wszystkich endpointów API z wyjątkiem publicznych.
@@ -138,6 +146,20 @@ const start = async () => {
       // Dla wszystkich pozostałych endpointów API wymagamy autoryzacji
       try {
         await request.jwtVerify();
+        const jwtUser = request.user as { id?: string };
+        if (!isPasswordChangePath(url) && jwtUser.id) {
+          const user = await prisma.user.findUnique({
+            where: { id: jwtUser.id },
+            select: { mustChangePassword: true },
+          });
+          if (user?.mustChangePassword) {
+            setNoCacheHeaders(reply);
+            return reply.code(403).send({
+              error: 'PASSWORD_CHANGE_REQUIRED',
+              message: 'Wymagana jest zmiana hasla przed dalszym korzystaniem z aplikacji.',
+            });
+          }
+        }
       } catch (err) {
         // Ustawiamy nagłówki anty-cache również dla odpowiedzi 401,
         // ponieważ onSend może nie zadziałać przy wcześniejszym przerwaniu.

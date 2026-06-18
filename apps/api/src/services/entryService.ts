@@ -91,7 +91,7 @@ export async function checkCollisions(payload: Partial<EntryPayload> & { semeste
   return conflicts;
 }
 
-export async function createEntry(payload: EntryPayload) {
+export async function createEntry(payload: EntryPayload, instituteId?: string | null) {
   const conflicts = await checkCollisions({
     semesterId: payload.semesterId,
     dayOfWeek: payload.dayOfWeek,
@@ -120,6 +120,7 @@ export async function createEntry(payload: EntryPayload) {
       dayOfWeek: payload.dayOfWeek,
       weekType: payload.weekType,
       classType: payload.classType,
+      ...(instituteId ? { instituteId } : {}),
       groups: {
         create: payload.groupIds.map(id => ({ groupId: id }))
       }

@@ -62,7 +62,11 @@ export default async function (server: FastifyInstance) {
     const id = parseIdParam(request, reply);
     try {
       const payload = majorSchema.parse(request.body);
-      const instituteId = extractFullScope(request).instituteId;
+      const scope = extractFullScope(request);
+      const whereClause = buildInstituteWhere(scope);
+      const target = await prisma.major.findFirst({ where: { id, ...whereClause } });
+      if (!target) return reply.code(404).send({ error: 'Nie znaleziono kierunku lub brak dostępu.' });
+      const instituteId = scope.instituteId;
       const major = await prisma.major.update({
         where: { id },
         data: {
@@ -79,6 +83,11 @@ export default async function (server: FastifyInstance) {
   server.delete('/api/v1/majors/:id', { preValidation: [server.authenticate, requireRole('ADMIN')] }, async (request, reply) => {
     const id = parseIdParam(request, reply);
     try {
+      const scope = extractFullScope(request);
+      const whereClause = buildInstituteWhere(scope);
+      const target = await prisma.major.findFirst({ where: { id, ...whereClause } });
+      if (!target) return reply.code(404).send({ error: 'Nie znaleziono kierunku lub brak dostępu.' });
+
       await prisma.major.delete({ where: { id } });
       return reply.send({ success: true });
     } catch (err) {

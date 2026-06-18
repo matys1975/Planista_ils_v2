@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { prisma } from '../../lib/prisma';
 import { getBackupDir, buildPgDumpCommand } from './commandBuilder';
-import { spawn } from 'child_process';
+import { runCommand } from './commandRunner';
 
 /**
  * Automatyczny scheduler backupów bazy danych.
@@ -113,50 +113,19 @@ async function createAutoBackup(logger: SchedulerLogger): Promise<string> {
 
   logger.info(`Auto-backup: uruchamiam pg_dump...`);
 
-  const child = spawn(pgDumpCmd, [], {
-    cwd: path.join(process.cwd(), '..', '..'),
-    stdio: ['pipe', 'pipe', 'pipe'],
-    shell: true,
+  const result = await runCommand(pgDumpCmd, {
+    stdoutFile: filePath,
+    collectStdout: false,
+    maxBuffer: 50 * 1024 * 1024,
   });
 
-  const fileStream = fs.createWriteStream(filePath);
-  let totalBytes = 0;
-
-  child.stdout.on('data', (chunk: Buffer) => {
-    fileStream.write(chunk);
-    totalBytes += chunk.length;
-  });
-
-  let stderrOutput = '';
-  child.stderr.on('data', (data: Buffer) => {
-    stderrOutput += data.toString();
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    // Zapobiega crashom serwera, jeśli nie można zapisać pliku (np. EACCES)
-    fileStream.on('error', (err) => {
-        child.kill();
-        reject(new Error(`Błąd zapisu pliku backupu (sprawdź uprawnienia do katalogu): ${err.message}`));
-    });
-
-    child.on('close', (code) => {
-      fileStream.end();
-      if (code !== 0) {
-        reject(new Error(`pg_dump zakończył się z kodem ${code}: ${stderrOutput}`));
-      } else {
-        resolve();
-      }
-    });
-    child.on('error', reject);
-  });
-
-  if (totalBytes === 0) {
+  if (result.stdoutBytes === 0) {
     // Usuń pusty plik
     fs.unlinkSync(filePath);
     throw new Error('Auto-backup: pg_dump zwrócił pusty wynik');
   }
 
-  logger.info(`Auto-backup zapisany: ${filename} (${(totalBytes / 1024).toFixed(1)} KB)`);
+  logger.info(`Auto-backup zapisany: ${filename} (${(result.stdoutBytes / 1024).toFixed(1)} KB)`);
   return filename;
 }
 

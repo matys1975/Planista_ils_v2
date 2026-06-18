@@ -6,7 +6,7 @@
  *
  * Zmienne środowiskowe (opcjonalne):
  *   DEFAULT_ADMIN_EMAIL    — domyślnie: admin@planista.local
- *   DEFAULT_ADMIN_PASSWORD — domyślnie: admin123
+ *   INITIAL_ADMIN_PASSWORD — opcjonalne; domyślnie generowane losowo
  */
 
 import { PrismaClient } from '@prisma/client';

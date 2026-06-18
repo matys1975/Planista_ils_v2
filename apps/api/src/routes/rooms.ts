@@ -13,6 +13,42 @@ const createRoomSchema = z.object({
   instituteId: z.string().uuid().optional(),
 });
 
+async function resolveWritableInstituteId(
+  scope: ReturnType<typeof extractFullScope>,
+  requestedInstituteId: string | undefined,
+  reply: any,
+  options: { requireForDean?: boolean } = {}
+) {
+  if (scope.isSuperAdmin) return requestedInstituteId;
+
+  if (scope.facultyId) {
+    if (!requestedInstituteId) {
+      if (options.requireForDean) {
+        reply.code(400).send({ error: 'Wskaż instytut dla sali.' });
+        return null;
+      }
+      return undefined;
+    }
+
+    const institute = await prisma.institute.findFirst({
+      where: { id: requestedInstituteId, facultyId: scope.facultyId },
+      select: { id: true },
+    });
+    if (!institute) {
+      reply.code(403).send({ error: 'Brak dostępu do wskazanego instytutu.' });
+      return null;
+    }
+    return requestedInstituteId;
+  }
+
+  if (requestedInstituteId && requestedInstituteId !== scope.instituteId) {
+    reply.code(403).send({ error: 'Brak dostępu do wskazanego instytutu.' });
+    return null;
+  }
+
+  return scope.instituteId;
+}
+
 export default async function roomsRoutes(server: FastifyInstance) {
   server.get('/api/v1/rooms', { preValidation: [server.authenticate] }, async (request, reply) => {
     const scope = extractFullScope(request);
@@ -33,15 +69,15 @@ export default async function roomsRoutes(server: FastifyInstance) {
     return { data: rooms };
   });
 
-  server.post('/api/v1/rooms', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER')] }, async (request, reply) => {
+  server.post('/api/v1/rooms', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER', 'DEAN')] }, async (request, reply) => {
     try {
       const scope = extractFullScope(request);
       // Clean empty instituteId before Zod validation (empty string fails .uuid())
       const body = { ...(request.body as any) };
       if (body.instituteId === '') delete body.instituteId;
       const payload = createRoomSchema.parse(body);
-      // DEAN/SUPER_ADMIN can specify instituteId from body; ADMIN uses scope
-      const resolvedInstituteId = payload.instituteId || scope.instituteId;
+      const resolvedInstituteId = await resolveWritableInstituteId(scope, payload.instituteId, reply, { requireForDean: true });
+      if (resolvedInstituteId === null) return;
       const { instituteId: _bodyInstId, ...roomData } = payload;
       const room = await prisma.room.create({
         data: {
@@ -56,7 +92,7 @@ export default async function roomsRoutes(server: FastifyInstance) {
     }
   });
 
-  server.put('/api/v1/rooms/:id', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER')] }, async (request, reply) => {
+  server.put('/api/v1/rooms/:id', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER', 'DEAN')] }, async (request, reply) => {
     const id = parseIdParam(request, reply);
     try {
       const scope = extractFullScope(request);
@@ -70,13 +106,14 @@ export default async function roomsRoutes(server: FastifyInstance) {
       const putBody = { ...(request.body as any) };
       if (putBody.instituteId === '') delete putBody.instituteId;
       const payload = createRoomSchema.partial().parse(putBody);
-      // DEAN/SUPER_ADMIN can reassign room to different institute
       const { instituteId: bodyInstId, ...roomData } = payload;
+      const resolvedInstituteId = await resolveWritableInstituteId(scope, bodyInstId, reply);
+      if (resolvedInstituteId === null) return;
       const room = await prisma.room.update({
         where: { id },
         data: {
           ...roomData,
-          ...(bodyInstId ? { instituteId: bodyInstId } : {}),
+          ...(resolvedInstituteId ? { instituteId: resolvedInstituteId } : {}),
         },
       });
       return reply.send({ data: room });
@@ -85,7 +122,7 @@ export default async function roomsRoutes(server: FastifyInstance) {
     }
   });
 
-  server.delete('/api/v1/rooms/:id', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER')] }, async (request, reply) => {
+  server.delete('/api/v1/rooms/:id', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER', 'DEAN')] }, async (request, reply) => {
     const id = parseIdParam(request, reply);
     const { force } = request.query as { force?: string };
 

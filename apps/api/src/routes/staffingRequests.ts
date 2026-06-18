@@ -15,6 +15,13 @@ const updateStatusSchema = z.object({
   adminNotes: z.string().optional(),
 });
 
+function staffingScopeWhere(sc: ReturnType<typeof extractFullScope>) {
+  if (sc.isSuperAdmin) return {};
+  if (sc.facultyId) return { institute: { facultyId: sc.facultyId } };
+  if (sc.instituteId) return { instituteId: sc.instituteId };
+  return { instituteId: '__NO_ACCESS__' };
+}
+
 export default async function staffingRequestsRoutes(server: FastifyInstance) {
   // GET /api/v1/staffing-requests
   server.get('/api/v1/staffing-requests', { preValidation: [server.authenticate] }, async (request, reply) => {
@@ -62,8 +69,8 @@ export default async function staffingRequestsRoutes(server: FastifyInstance) {
       const payload = createStaffingRequestSchema.parse(request.body);
 
       // Sprawdź czy course istnieje
-      const course = await prisma.course.findUnique({
-        where: { id: payload.courseId },
+      const course = await prisma.course.findFirst({
+        where: { id: payload.courseId, instituteId: sc.instituteId },
       });
 
       if (!course) {
@@ -91,8 +98,15 @@ export default async function staffingRequestsRoutes(server: FastifyInstance) {
   server.patch('/api/v1/staffing-requests/:id/status', { preValidation: [server.authenticate, requireRole('SUPER_ADMIN', 'DEAN')] }, async (request, reply) => {
     const id = parseIdParam(request, reply);
     try {
+      const sc = extractFullScope(request);
       const payload = updateStatusSchema.parse(request.body);
-      
+
+      const existing = await prisma.staffingRequest.findFirst({
+        where: { id, ...staffingScopeWhere(sc) },
+        select: { id: true },
+      });
+      if (!existing) return reply.code(404).send({ error: 'Nie znaleziono zgłoszenia lub brak dostępu.' });
+
       const req = await prisma.staffingRequest.update({
         where: { id },
         data: { 

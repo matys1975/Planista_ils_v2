@@ -38,6 +38,7 @@ npm-debug.log*
 # Backups and database dumps
 backups/
 *.sql
+!packages/database/prisma/migrations/**/*.sql
 *.zip
 *.rar
 *.7z

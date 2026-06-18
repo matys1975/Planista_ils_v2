@@ -40,12 +40,14 @@ export default async function groupsRoutes(server: FastifyInstance) {
 
   server.post('/api/v1/groups', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER')] }, async (request, reply) => {
     try {
-      const instituteId = extractFullScope(request).instituteId;
+      const scope = extractFullScope(request);
+      const instituteId = scope.instituteId;
       const payload = createGroupSchema.parse(request.body);
 
       let majorName = payload.majorName;
       if (payload.majorId) {
-        const major = await prisma.major.findUnique({ where: { id: payload.majorId } });
+        const major = await prisma.major.findFirst({ where: { id: payload.majorId, ...buildInstituteWhere(scope) } });
+        if (!major) return reply.code(403).send({ error: 'Brak dostępu do wskazanego kierunku.' });
         if (major) {
           majorName = major.name;
         }
@@ -78,7 +80,9 @@ export default async function groupsRoutes(server: FastifyInstance) {
 
       let majorName = payload.majorName;
       if (payload.majorId) {
-        const major = await prisma.major.findUnique({ where: { id: payload.majorId } });
+        const scope = extractFullScope(request);
+        const major = await prisma.major.findFirst({ where: { id: payload.majorId, ...buildInstituteWhere(scope) } });
+        if (!major) return reply.code(403).send({ error: 'Brak dostępu do wskazanego kierunku.' });
         if (major) {
           majorName = major.name;
         }

@@ -1,8 +1,79 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
-import { requireRole, extractFullScope, buildTeacherInstituteWhere } from '../lib/rbac';
+import { requireRole, extractFullScope, buildInstituteWhere, buildTeacherInstituteWhere, buildTeacherWhere, type ScopeFilter } from '../lib/rbac';
 import { parseIdParam } from '../lib/params';
 import { entrySchema, createEntry, updateEntry } from '../services/entryService';
+
+function courseScopeWhere(scope: ScopeFilter) {
+  const where = buildInstituteWhere(scope) as any;
+  if (where.institute) return { institute: where.institute };
+  if (where.instituteId) return { instituteId: where.instituteId };
+  return where;
+}
+
+function entryScopeWhere(scope: ScopeFilter) {
+  const courseWhere = courseScopeWhere(scope);
+  if (Object.keys(courseWhere).length === 0) return {};
+  return { course: courseWhere };
+}
+
+async function getScopedCourse(id: string, scope: ScopeFilter) {
+  return prisma.course.findFirst({
+    where: { id, ...courseScopeWhere(scope) },
+    select: { id: true, instituteId: true },
+  });
+}
+
+async function ensureEntryResourcesInScope(payload: {
+  courseId?: string;
+  teacherId?: string;
+  roomId?: string;
+  groupIds?: string[];
+}, scope: ScopeFilter, reply: any) {
+  let course: { id: string; instituteId: string | null } | null = null;
+
+  if (payload.courseId) {
+    course = await getScopedCourse(payload.courseId, scope);
+    if (!course) {
+      reply.code(403).send({ error: 'Brak dostępu do wskazanego przedmiotu.' });
+      return null;
+    }
+  }
+
+  if (payload.teacherId) {
+    const teacher = await prisma.teacher.findFirst({
+      where: { id: payload.teacherId, ...buildTeacherWhere(scope) },
+      select: { id: true },
+    });
+    if (!teacher) {
+      reply.code(403).send({ error: 'Brak dostępu do wskazanego prowadzącego.' });
+      return null;
+    }
+  }
+
+  if (payload.roomId) {
+    const room = await prisma.room.findFirst({
+      where: { id: payload.roomId, ...(buildInstituteWhere(scope) as any) },
+      select: { id: true },
+    });
+    if (!room) {
+      reply.code(403).send({ error: 'Brak dostępu do wskazanej sali.' });
+      return null;
+    }
+  }
+
+  if (payload.groupIds && payload.groupIds.length > 0) {
+    const groupsCount = await prisma.group.count({
+      where: { id: { in: payload.groupIds }, ...(buildInstituteWhere(scope) as any) },
+    });
+    if (groupsCount !== new Set(payload.groupIds).size) {
+      reply.code(403).send({ error: 'Brak dostępu do co najmniej jednej wskazanej grupy.' });
+      return null;
+    }
+  }
+
+  return { course };
+}
 
 export default async function entriesRoutes(server: FastifyInstance) {
 
@@ -48,8 +119,11 @@ export default async function entriesRoutes(server: FastifyInstance) {
   server.post('/api/v1/entries', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER')] }, async (request, reply) => {
     try {
       const payload = entrySchema.parse(request.body);
+      const scope = extractFullScope(request);
+      const access = await ensureEntryResourcesInScope(payload, scope, reply);
+      if (!access) return;
 
-      const formattedEntry = await createEntry(payload);
+      const formattedEntry = await createEntry(payload, access.course?.instituteId);
       return reply.code(201).send({ data: formattedEntry });
 
     } catch (err) {
@@ -68,6 +142,16 @@ export default async function entriesRoutes(server: FastifyInstance) {
     const id = parseIdParam(request, reply);
     try {
       const payload = entrySchema.partial().parse(request.body);
+      const scope = extractFullScope(request);
+
+      const currentEntry = await prisma.scheduleEntry.findFirst({
+        where: { id, ...entryScopeWhere(scope) },
+        select: { id: true },
+      });
+      if (!currentEntry) return reply.code(404).send({ error: 'Nie znaleziono wpisu planu lub brak dostępu.' });
+
+      const access = await ensureEntryResourcesInScope(payload, scope, reply);
+      if (!access) return;
 
       const formattedEntry = await updateEntry(id, payload);
       return reply.send({ data: formattedEntry });
@@ -88,6 +172,13 @@ export default async function entriesRoutes(server: FastifyInstance) {
   server.delete('/api/v1/entries/:id', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER')] }, async (request, reply) => {
     const id = parseIdParam(request, reply);
     try {
+      const scope = extractFullScope(request);
+      const currentEntry = await prisma.scheduleEntry.findFirst({
+        where: { id, ...entryScopeWhere(scope) },
+        select: { id: true },
+      });
+      if (!currentEntry) return reply.code(404).send({ error: 'Nie znaleziono wpisu planu lub brak dostępu.' });
+
       await prisma.scheduleEntry.delete({ where: { id } });
       return reply.send({ success: true });
     } catch {

@@ -24,7 +24,7 @@ const dashboardRoute = createRoute({
   component: DashboardLayout,
 
   /* ═══ Auth Guard — blokuje render całego dashboardu przed weryfikacją ═══ */
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     const { isAuthenticated, checkSession } = useAuthStore.getState();
 
     // 1. sessionStorage mówi "niezalogowany" → natychmiastowy redirect, zero renderowania
@@ -41,6 +41,11 @@ const dashboardRoute = createRoute({
         throw redirect({ to: '/login' });
       }
       markSessionVerified();
+    }
+
+    const currentState = useAuthStore.getState();
+    if (currentState.mustChangePassword && location.pathname !== '/profil') {
+      throw redirect({ to: '/profil' });
     }
   },
 

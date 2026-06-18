@@ -1,10 +1,7 @@
 import path from 'path';
 import fs from 'fs';
-import { exec, spawn } from 'child_process';
-import { promisify } from 'util';
-import { getBackupDir, buildPgDumpCommand } from './commandBuilder';
-
-const execAsync = promisify(exec);
+import { buildPgDumpCommand, formatCommandForLog, getBackupDir } from './commandBuilder';
+import { runCommand } from './commandRunner';
 
 export interface BackupFileInfo {
     name: string;
@@ -27,7 +24,7 @@ export async function streamBackup(logger: BackupLogger): Promise<{ filename: st
     const filename = `backup_planu_${formattedDate}.sql`;
 
     const pgDumpCmd = buildPgDumpCommand();
-    logger.info(`Wykonuję backup: ${pgDumpCmd.replace(/\/\/.*:.*@/, '//***:***@')}`);
+    logger.info(`Wykonuję backup: ${formatCommandForLog(pgDumpCmd)}`);
 
     const backupDir = getBackupDir();
     if (!fs.existsSync(backupDir)) {
@@ -35,44 +32,8 @@ export async function streamBackup(logger: BackupLogger): Promise<{ filename: st
     }
     const filePath = path.join(backupDir, filename);
 
-    const child = spawn(pgDumpCmd, [], {
-        cwd: path.join(process.cwd(), '..', '..'),
-        stdio: ['pipe', 'pipe', 'pipe'],
-        shell: true,
-    });
-
-    const fileStream = fs.createWriteStream(filePath);
-    const chunks: Buffer[] = [];
-
-    child.stdout.on('data', (chunk: Buffer) => {
-        fileStream.write(chunk);
-        chunks.push(chunk);
-    });
-
-    let stderrOutput = '';
-    child.stderr.on('data', (data: Buffer) => {
-        stderrOutput += data.toString();
-    });
-
-    await new Promise<void>((resolve, reject) => {
-        // Zapobiega crashom serwera, jeśli nie można zapisać pliku (np. EACCES)
-        fileStream.on('error', (err) => {
-            child.kill();
-            reject(new Error(`Błąd zapisu pliku backupu (sprawdź uprawnienia do katalogu): ${err.message}`));
-        });
-
-        child.on('close', (code) => {
-            fileStream.end();
-            if (code !== 0) {
-                reject(new Error(`pg_dump zakończył się z kodem ${code}: ${stderrOutput}`));
-            } else {
-                resolve();
-            }
-        });
-        child.on('error', reject);
-    });
-
-    const buffer = Buffer.concat(chunks);
+    const result = await runCommand(pgDumpCmd, { stdoutFile: filePath, maxBuffer: 50 * 1024 * 1024 });
+    const buffer = result.stdout;
     logger.info(`Backup bazy danych zapisany: ${filePath} (${buffer.length} bajtów)`);
     return { filename, buffer };
 }
@@ -118,13 +79,14 @@ export function downloadBackup(filename: string): string {
 export async function createSafetyBackup(logger: BackupLogger): Promise<string | null> {
     const pgDumpCmd = buildPgDumpCommand();
     try {
-        const { stdout } = await execAsync(pgDumpCmd, {
-            maxBuffer: 50 * 1024 * 1024,
-            cwd: path.join(process.cwd(), '..', '..'),
-        });
-        if (stdout && stdout.trim().length > 0) {
+        const result = await runCommand(pgDumpCmd, { maxBuffer: 50 * 1024 * 1024 });
+        if (result.stdout.length > 0 && result.stdout.toString('utf-8').trim().length > 0) {
+            const backupDir = getBackupDir();
+            if (!fs.existsSync(backupDir)) {
+                fs.mkdirSync(backupDir, { recursive: true });
+            }
             const safetyFilename = `pre_restore_safety_${Date.now()}.sql`;
-            fs.writeFileSync(path.join(getBackupDir(), safetyFilename), stdout, 'utf-8');
+            fs.writeFileSync(path.join(backupDir, safetyFilename), result.stdout);
             logger.info(`Backup bezpieczeństwa zapisany: ${safetyFilename}`);
             return safetyFilename;
         }

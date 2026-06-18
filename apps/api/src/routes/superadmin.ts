@@ -4,6 +4,7 @@ import { requireRole } from '../lib/rbac';
 import multipart from '@fastify/multipart';
 import z from 'zod';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { SALT_ROUNDS } from '../config/constants';
 
 const instituteSchema = z.object({
@@ -592,7 +593,7 @@ export default async function superadminRoutes(server: FastifyInstance) {
       const passwordHash = await bcrypt.hash(payload.newPassword, SALT_ROUNDS);
       await prisma.user.update({
         where: { id },
-        data: { passwordHash },
+        data: { passwordHash, mustChangePassword: true },
       });
 
       return reply.send({ success: true, message: 'Hasło zostało zresetowane.' });
@@ -724,17 +725,23 @@ export default async function superadminRoutes(server: FastifyInstance) {
         return reply.send({ data: user, message: `Użytkownik "${user.name}" promowany na admina jednostki "${institute.name}".` });
       } else {
         // Create new user from teacher data
-        const defaultPassword = await bcrypt.hash('admin123', SALT_ROUNDS);
+        const temporaryPassword = crypto.randomBytes(12).toString('base64url');
+        const passwordHash = await bcrypt.hash(temporaryPassword, SALT_ROUNDS);
         user = await prisma.user.create({
           data: {
             email: teacher.email,
             name: `${teacher.title} ${teacher.firstName} ${teacher.lastName}`.trim(),
-            passwordHash: defaultPassword,
+            passwordHash,
             role: 'ADMIN',
             instituteId,
+            mustChangePassword: true,
           },
         });
-        return reply.code(201).send({ data: user, message: `Utworzono konto admina "${user.name}" (hasło domyślne: admin123).` });
+        return reply.code(201).send({
+          data: user,
+          temporaryPassword,
+          message: `Utworzono konto admina "${user.name}". Hasło jednorazowe: ${temporaryPassword}. Poproś o zmianę po pierwszym logowaniu.`,
+        });
       }
     } else if (body.name && body.email && body.password) {
       // Opcja B: Utwórz nowego użytkownika ręcznie
@@ -756,6 +763,7 @@ export default async function superadminRoutes(server: FastifyInstance) {
           passwordHash,
           role: 'ADMIN',
           instituteId,
+          mustChangePassword: true,
         },
       });
       return reply.code(201).send({ data: user, message: `Utworzono admina "${user.name}".` });

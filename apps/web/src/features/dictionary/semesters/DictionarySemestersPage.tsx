@@ -5,8 +5,8 @@ import { SemestersTable } from './components/SemestersTable';
 import { useAuthStore } from '@/store/auth';
 
 export function DictionarySemestersPage() {
-    const { user } = useAuthStore();
-    const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+    const role = useAuthStore((state) => state.role);
+    const isSuperAdmin = role === 'SUPER_ADMIN';
 
     const {
         semesters,
