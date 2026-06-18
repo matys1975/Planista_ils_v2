@@ -57,7 +57,11 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-plan_db}?schema=public
       JWT_SECRET: ${JWT_SECRET:?Ustaw JWT_SECRET w .env (min. 32 znaki)}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      BACKUP_DIR: ${BACKUP_DIR:-/app/backups}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-admin@planista.local}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
       SEED_DB: ${SEED_DB:-false}
     volumes:
       - ./backups:/app/backups
