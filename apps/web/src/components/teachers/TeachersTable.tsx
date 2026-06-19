@@ -4,6 +4,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import type { Teacher } from '../../types/models';
+import { getInstituteShortLabel } from '../../utils/instituteLabels';
 
 interface TeachersTableProps {
   teachers: Teacher[];
@@ -90,7 +91,12 @@ function TeacherInfoCell({ teacher }: { teacher: Teacher }) {
         {teacher.title && <span className="text-[11px] font-medium italic text-primary/70 ml-1.5">{teacher.title}</span>}
       </div>
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="px-2 py-0.5 bg-primary/10 border border-primary/20 rounded text-[10px] font-bold text-primary">{teacher.unit}</span>
+        <span
+          className="px-2 py-0.5 bg-primary/10 border border-primary/20 rounded text-[10px] font-bold text-primary"
+          title={teacher.unit}
+        >
+          {getInstituteShortLabel(teacher.unit)}
+        </span>
         <div className="flex items-center gap-1.5">
           <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden" title={`${Math.round(assignedHours)}h / ${teacher.pensumLimit}h`}>
             <div

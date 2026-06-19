@@ -12,6 +12,7 @@ import { TeacherPreviewSheet } from '../components/teachers/TeacherPreviewSheet'
 import { TeacherSchedulePrintView } from '../components/teachers/TeacherSchedulePrintView';
 import { TeacherPrintOnlyView } from '../components/teachers/TeacherPrintOnlyView';
 import { TeachersTable } from '../components/teachers/TeachersTable';
+import { InstituteTilesFilter } from '../components/institutes/InstituteTilesFilter';
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 const fetchTeachers = () => fetchApi('/teachers');
@@ -41,9 +42,13 @@ export function DictionaryTeachers() {
   const { data: teachersData, isLoading } = useQuery({ queryKey: ['teachers'], queryFn: fetchTeachers });
   const { data: coursesData } = useQuery({ queryKey: ['courses'], queryFn: fetchCourses, enabled: !!allocatingTeacher });
   const { data: groupsData } = useQuery({ queryKey: ['groups'], queryFn: fetchGroups, enabled: !!allocatingTeacher });
+  const { data: institutesData } = useQuery({ queryKey: ['institutes'], queryFn: () => fetchApi('/institutes') });
 
   // ─── Deriving unique units for filter ──────────────────────────────────────
   const uniqueUnits = Array.from(new Set((teachersData?.data || []).map((t: Teacher) => t.unit))).sort() as string[];
+  const instituteShortCodeByName = new Map(
+    (institutesData?.data || []).map((inst: any) => [inst.name, inst.shortCode || null])
+  );
 
   const filteredTeachers = (teachersData?.data || []).filter((t: Teacher) => {
     if (selectedUnits.length === 0) return true;
@@ -213,48 +218,18 @@ export function DictionaryTeachers() {
 
         {/* ─── DENSE UNIT FILTER BAR ─── */}
         {uniqueUnits.length > 0 && (
-          <div className="bg-card rounded-xl border shadow-sm overflow-hidden print:hidden">
-            <div className="px-4 py-1.5 bg-muted/20 flex flex-wrap items-center gap-3">
-              <span className="text-[10px] font-black uppercase text-muted-foreground/70 tracking-widest">Filtruj Jednostkę:</span>
-              <div className="flex flex-wrap gap-1">
-                {uniqueUnits.map(unit => {
-                  const shortCode = unit.replace('Instytut Lingwistyki Stosowanej', 'ILS')
-                    .replace('Instytut Filologii Germańskiej', 'IFG')
-                    .replace('Instytut Filologii Romańskiej', 'IFROM')
-                    .replace('Instytut Językoznawstwa', 'IJ')
-                    .replace('Studium Praktycznej Nauki Języków Obcych', 'SPNJO')
-                    .replace('Instytut Filologii Słowiańskiej', 'IFSłow')
-                    .replace('Instytut Filologii Wschodniosłowiańskich', 'IFW')
-                    .replace('Pracownik UCP', 'UCP')
-                    .replace('Pracownik zlecony', 'Zlecenie')
-                    .replace('Wydział Neofilologii', 'WN');
-
-                  const isSelected = selectedUnits.includes(unit);
-                  return (
-                    <button
-                      key={unit}
-                      onClick={() => toggleUnit(unit)}
-                      className={`px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-tight transition-all border ${isSelected
-                        ? 'bg-primary text-white border-primary shadow-sm'
-                        : 'bg-background hover:bg-muted text-muted-foreground border-transparent'
-                        }`}
-                      title={unit}
-                    >
-                      {shortCode}
-                    </button>
-                  );
-                })}
-              </div>
-              {selectedUnits.length > 0 && (
-                <button
-                  onClick={() => setSelectedUnits([])}
-                  className="text-[10px] font-black text-destructive uppercase hover:underline ml-2"
-                >
-                  Wyczyść
-                </button>
-              )}
-            </div>
-          </div>
+          <InstituteTilesFilter
+            items={uniqueUnits.map((unit) => ({
+              id: unit,
+              name: unit,
+              shortCode: instituteShortCodeByName.get(unit) || null,
+              count: (teachersData?.data || []).filter((t: Teacher) => t.unit === unit).length,
+            }))}
+            selectedId={selectedUnits.length === 1 ? selectedUnits[0] : 'all'}
+            onSelect={(id) => setSelectedUnits(id === 'all' ? [] : [id])}
+            allCount={teachersData?.data?.length || 0}
+            className="print:hidden"
+          />
         )}
 
         <div className="bg-card rounded-xl border shadow-sm">

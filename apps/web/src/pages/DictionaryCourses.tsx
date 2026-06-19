@@ -14,6 +14,7 @@ import { CloneSemesterModal } from '../components/courses/CloneSemesterModal';
 import { UsosImportDialog } from '../components/courses/UsosImportDialog';
 
 import { useAuthStore } from '../store/auth';
+import { InstituteTilesFilter } from '../components/institutes/InstituteTilesFilter';
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 const fetchCourses = (semesterId?: string) => fetchApi(`/courses${semesterId ? `?semesterId=${semesterId}` : ''}`);
@@ -37,10 +38,12 @@ export function DictionaryCourses() {
   const [activeMajorTab, setActiveMajorTab] = useState('all');
   const [activeYearTab, setActiveYearTab] = useState('all');
   const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'unassigned' | 'partial' | 'full' | 'over'>('all');
+  const [selectedInstituteId, setSelectedInstituteId] = useState('all');
   const [formError, setFormError] = useState('');
 
   const queryClient = useQueryClient();
-  const { activeSemesterId, setActiveSemesterId } = useAuthStore();
+  const { activeSemesterId, setActiveSemesterId, role } = useAuthStore();
+  const showInstituteFilter = role === 'DEAN' || role === 'SUPER_ADMIN';
 
   // ─── Queries ───────────────────────────────────────────────────────────────
   const { data: coursesData, isLoading: isLoadingCourses } = useQuery({
@@ -64,6 +67,11 @@ export function DictionaryCourses() {
   const { data: teachersData } = useQuery({ queryKey: ['teachers'], queryFn: fetchTeachers, enabled: !!allocatingCourse });
   const { data: groupsData } = useQuery({ queryKey: ['groups'], queryFn: fetchGroups, enabled: !!allocatingCourse });
   const { data: majorsData } = useQuery({ queryKey: ['majors'], queryFn: fetchMajors });
+  const { data: institutesData } = useQuery({
+    queryKey: ['institutes'],
+    queryFn: () => fetchApi('/institutes'),
+    enabled: showInstituteFilter,
+  });
 
   const invalidateCourses = () => {
     queryClient.invalidateQueries({ queryKey: ['courses'] });
@@ -165,9 +173,12 @@ export function DictionaryCourses() {
   // ─── Statistics Calculation ────────────────────────────────────────────────
   const { filteredCourses, stats } = useMemo(() => {
     const courses = coursesData?.data || [];
+    const scopedByInstitute = selectedInstituteId === 'all'
+      ? courses
+      : courses.filter((course: any) => course.instituteId === selectedInstituteId);
 
     // First pass: Calculate stats for the current major/year selection
-    const baseFiltered = courses.filter((course: any) => {
+    const baseFiltered = scopedByInstitute.filter((course: any) => {
       const majorMatch = activeMajorTab === 'all' || course.majors?.some((m: any) => m.major?.code === activeMajorTab);
       if (!majorMatch) return false;
       if (activeMajorTab === 'all' || activeYearTab === 'all') return true;
@@ -201,7 +212,23 @@ export function DictionaryCourses() {
         percent: total > 0 ? Math.round((full / total) * 100) : 0
       }
     };
-  }, [coursesData, activeMajorTab, activeYearTab, activeStatusFilter]);
+  }, [coursesData, activeMajorTab, activeYearTab, activeStatusFilter, selectedInstituteId]);
+
+  const visibleMajors = useMemo(() => {
+    if (selectedInstituteId === 'all') {
+      return majorsData?.data || [];
+    }
+    return (majorsData?.data || []).filter((major: any) => major.instituteId === selectedInstituteId);
+  }, [majorsData, selectedInstituteId]);
+
+  useEffect(() => {
+    if (activeMajorTab === 'all') return;
+    const stillVisible = visibleMajors.some((major: any) => major.code === activeMajorTab);
+    if (!stillVisible) {
+      setActiveMajorTab('all');
+      setActiveYearTab('all');
+    }
+  }, [visibleMajors, activeMajorTab]);
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
   const handleFormSubmit = (data: CourseFormData) => {
@@ -257,10 +284,17 @@ export function DictionaryCourses() {
   };
 
   // ─── Render ────────────────────────────────────────────────────────────────
-  const selectedMajorObj = majorsData?.data?.find((m: any) => m.code === activeMajorTab);
+  const selectedMajorObj = visibleMajors.find((m: any) => m.code === activeMajorTab);
   const currentAllocatingCourse = allocatingCourse
     ? (coursesData?.data?.find((c: any) => c.id === allocatingCourse.id) || allocatingCourse)
     : null;
+  const institutes = institutesData?.data || [];
+  const instituteItems = institutes.map((inst: any) => ({
+    id: inst.id,
+    name: inst.name,
+    shortCode: inst.shortCode,
+    count: (coursesData?.data || []).filter((course: any) => course.instituteId === inst.id).length,
+  }));
 
   return (
     <div className="space-y-4 flex flex-col p-4 sm:p-6 animate-in fade-in duration-500">
@@ -384,6 +418,16 @@ export function DictionaryCourses() {
 
       </div>
 
+      {showInstituteFilter && institutes.length > 0 && (
+        <InstituteTilesFilter
+          items={instituteItems}
+          selectedId={selectedInstituteId}
+          onSelect={setSelectedInstituteId}
+          allCount={coursesData?.data?.length || 0}
+          className="print:hidden"
+        />
+      )}
+
       {/* Table with major/year filter tabs */}
       <div className="bg-card rounded-xl border shadow-sm print:border-none print:shadow-none">
         {/* Major tabs */}
@@ -394,7 +438,7 @@ export function DictionaryCourses() {
           >
             Wszystkie
           </button>
-          {majorsData?.data?.map((m: any) => (
+          {visibleMajors.map((m: any) => (
             <button
               key={m.id}
               onClick={() => { setActiveMajorTab(m.code); setActiveYearTab('all'); }}

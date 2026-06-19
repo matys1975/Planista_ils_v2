@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Filter, Building2, X } from 'lucide-react';
+import { Search, Filter, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +16,7 @@ import { useDeanInstitutes } from '../hooks/useDeanInstitutes';
 import { SortableHeader } from './SortableHeader';
 import { ExportButton } from './ExportButton';
 import type { SortState, DeanWorkload } from '../types/dean.types';
+import { InstituteTilesFilter } from '../../../components/institutes/InstituteTilesFilter';
 
 const STATUS_FILTERS = [
     { key: 'all', label: 'Wszyscy' },
@@ -28,21 +29,20 @@ export function DeanWorkloadTable() {
     const [sort, setSort] = useState<SortState>({ by: 'balance', dir: 'desc' });
     const [statusFilter, setStatusFilter] = useState('all');
     const [search, setSearch] = useState('');
-    const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
+    const [selectedInstituteId, setSelectedInstituteId] = useState('all');
 
-    const { data: institutesData, isLoading: institutesLoading } = useDeanInstitutes();
+    const { data: institutesData } = useDeanInstitutes();
     const { data, isLoading } = useDeanWorkload({
         sortBy: sort.by,
         sortDir: sort.dir,
         status: statusFilter === 'all' ? undefined : statusFilter,
-        units: selectedUnits.length > 0 ? selectedUnits : undefined,
         search: search || undefined,
     });
 
     const workloads = data?.data || [];
     const institutes = institutesData?.data || [];
+    const selectedInstitute = institutes.find((inst) => inst.id === selectedInstituteId);
 
-    // Agregacja liczby prowadzących per jednostka z aktualnych danych workload
     const unitCounts = useMemo(() => {
         const counts: Record<string, number> = {};
         for (const w of workloads) {
@@ -51,7 +51,15 @@ export function DeanWorkloadTable() {
         return counts;
     }, [workloads]);
 
-    const hasActiveFilters = statusFilter !== 'all' || search !== '' || selectedUnits.length > 0;
+    const filteredWorkloads = useMemo(() => {
+        if (!selectedInstitute || selectedInstituteId === 'all') {
+            return workloads;
+        }
+        return workloads.filter((w) => w.institute === selectedInstitute.name);
+    }, [workloads, selectedInstitute, selectedInstituteId]);
+
+    const hasActiveFilters =
+        statusFilter !== 'all' || search !== '' || selectedInstituteId !== 'all';
 
     function handleSort(key: string) {
         setSort((prev) => ({
@@ -60,78 +68,28 @@ export function DeanWorkloadTable() {
         }));
     }
 
-    function toggleUnit(unitName: string) {
-        setSelectedUnits((prev) =>
-            prev.includes(unitName) ? prev.filter((u) => u !== unitName) : [...prev, unitName]
-        );
-    }
-
     function clearFilters() {
         setStatusFilter('all');
         setSearch('');
-        setSelectedUnits([]);
-    }
-
-    function selectAllUnits() {
-        setSelectedUnits([]);
+        setSelectedInstituteId('all');
     }
 
     return (
         <div className="space-y-4">
-            {/* ── Kafelki jednostek ── */}
-            <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Building2 className="w-4 h-4" />
-                    <span className="font-medium">Filtruj po jednostce</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {/* Kafelek "Wszystkie" */}
-                    <button
-                        onClick={selectAllUnits}
-                        className={`relative flex flex-col items-start px-3 py-2 rounded-lg border text-left transition-all min-w-[90px]
-                            ${selectedUnits.length === 0
-                                ? 'bg-[#003366] text-white border-[#003366] shadow-sm'
-                                : 'bg-white text-navy-dark border-warm-border hover:border-[#003366]/40 hover:bg-cream'
-                            }`}
-                    >
-                        <span className="text-xs font-semibold">Wszystkie</span>
-                        <span className={`text-[10px] ${selectedUnits.length === 0 ? 'text-white/80' : 'text-muted-foreground'}`}>
-                            {workloads.length} prowadzących
-                        </span>
-                    </button>
+            {institutes.length > 0 && (
+                <InstituteTilesFilter
+                    items={institutes.map((inst) => ({
+                        id: inst.id,
+                        name: inst.name,
+                        shortCode: inst.shortCode,
+                        count: unitCounts[inst.name] ?? 0,
+                    }))}
+                    selectedId={selectedInstituteId}
+                    onSelect={setSelectedInstituteId}
+                    allCount={workloads.length}
+                />
+            )}
 
-                    {/* Kafelki poszczególnych jednostek */}
-                    {institutesLoading ? (
-                        <div className="text-xs text-muted-foreground py-2">Ładowanie jednostek…</div>
-                    ) : (
-                        institutes.map((inst) => {
-                            const isSelected = selectedUnits.includes(inst.name);
-                            const count = unitCounts[inst.name] ?? 0;
-                            return (
-                                <button
-                                    key={inst.id}
-                                    onClick={() => toggleUnit(inst.name)}
-                                    title={inst.name}
-                                    className={`relative flex flex-col items-start px-3 py-2 rounded-lg border text-left transition-all min-w-[90px]
-                                        ${isSelected
-                                            ? 'bg-[#00ADEF] text-white border-[#00ADEF] shadow-sm'
-                                            : 'bg-white text-navy-dark border-warm-border hover:border-[#00ADEF]/40 hover:bg-cream'
-                                        }`}
-                                >
-                                    <span className="text-xs font-semibold truncate max-w-[140px]">
-                                        {inst.shortCode || inst.name}
-                                    </span>
-                                    <span className={`text-[10px] ${isSelected ? 'text-white/80' : 'text-muted-foreground'}`}>
-                                        {count} prowadzących
-                                    </span>
-                                </button>
-                            );
-                        })
-                    )}
-                </div>
-            </div>
-
-            {/* ── Status filtry + wyczyść ── */}
             <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                 <div className="flex flex-wrap gap-2 items-center">
                     <Filter className="w-4 h-4 text-muted-foreground" />
@@ -141,10 +99,11 @@ export function DeanWorkloadTable() {
                             variant={statusFilter === f.key ? 'default' : 'outline'}
                             size="sm"
                             onClick={() => setStatusFilter(f.key)}
-                            className={`text-xs h-8 ${statusFilter === f.key
-                                ? 'bg-[#00ADEF] hover:bg-[#00ADEF]/90 text-white'
-                                : 'border-[#00ADEF]/20 text-[#00ADEF]'
-                                }`}
+                            className={`text-xs h-8 ${
+                                statusFilter === f.key
+                                    ? 'bg-[#00ADEF] hover:bg-[#00ADEF]/90 text-white'
+                                    : 'border-[#00ADEF]/20 text-[#00ADEF]'
+                            }`}
                         >
                             {f.label}
                         </Button>
@@ -196,22 +155,22 @@ export function DeanWorkloadTable() {
                                     Ładowanie...
                                 </TableCell>
                             </TableRow>
-                        ) : workloads.length === 0 ? (
+                        ) : filteredWorkloads.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                                     Brak danych do wyświetlenia.
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            workloads.map((w: DeanWorkload) => (
+                            filteredWorkloads.map((w: DeanWorkload) => (
                                 <TableRow
                                     key={w.id}
                                     className={
                                         w.isOverloaded
                                             ? 'bg-status-danger-bg/15 hover:bg-status-danger-bg/35'
                                             : w.isUnderloaded
-                                                ? 'bg-status-warning-bg/15 hover:bg-status-warning-bg/35'
-                                                : 'bg-status-active-bg/15 hover:bg-status-active-bg/35'
+                                              ? 'bg-status-warning-bg/15 hover:bg-status-warning-bg/35'
+                                              : 'bg-status-active-bg/15 hover:bg-status-active-bg/35'
                                     }
                                 >
                                     <TableCell className="font-medium">{w.name}</TableCell>
@@ -229,8 +188,8 @@ export function DeanWorkloadTable() {
                                                 w.balance > 0
                                                     ? 'border-status-danger-fg/20 text-status-danger-fg bg-status-danger-bg'
                                                     : w.balance < 0
-                                                        ? 'border-status-warning-fg/20 text-status-warning-fg bg-status-warning-bg'
-                                                        : 'border-status-active-fg/20 text-status-active-fg bg-status-active-bg'
+                                                      ? 'border-status-warning-fg/20 text-status-warning-fg bg-status-warning-bg'
+                                                      : 'border-status-active-fg/20 text-status-active-fg bg-status-active-bg'
                                             }
                                         >
                                             {w.balance > 0 ? `+${w.balance}h` : `${w.balance}h`}
@@ -240,10 +199,11 @@ export function DeanWorkloadTable() {
                                         <div className="space-y-1 w-32">
                                             <div className="w-full bg-muted rounded-full h-2 relative overflow-hidden border">
                                                 <div
-                                                    className={`absolute top-0 left-0 h-full transition-all duration-500 rounded-full ${w.utilizationPercent > 100
-                                                        ? 'bg-status-danger-fg'
-                                                        : 'bg-status-active-fg'
-                                                        }`}
+                                                    className={`absolute top-0 left-0 h-full transition-all duration-500 rounded-full ${
+                                                        w.utilizationPercent > 100
+                                                            ? 'bg-status-danger-fg'
+                                                            : 'bg-status-active-fg'
+                                                    }`}
                                                     style={{ width: `${Math.min(w.utilizationPercent, 100)}%` }}
                                                 />
                                             </div>

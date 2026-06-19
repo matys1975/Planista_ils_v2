@@ -32,6 +32,7 @@ import {
 import { Label } from '@/components/ui/label';
 
 import type { SortState, DeanInstitute, DeanUser } from '../features/dean/types/dean.types';
+import { getInstituteShortLabel } from '../utils/instituteLabels';
 
 type TabKey = 'overview' | 'institutes' | 'workload' | 'users' | 'requests' | 'admin-coverage';
 
@@ -341,6 +342,7 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
     const [sort, setSort] = useState<SortState>({ by: 'name', dir: 'asc' });
     const [search, setSearch] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('');
+    const [selectedInstituteId, setSelectedInstituteId] = useState('');
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<DeanUser | null>(null);
     const [formName, setFormName] = useState('');
@@ -357,8 +359,16 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
         enabled: isAdmin,
     });
     const faculties = facultiesData?.data || [];
+    const { data: institutesData } = useDeanInstitutes();
+    const institutes: DeanInstitute[] = institutesData?.data || [];
 
-    const { data, isLoading } = useDeanUsers({ sortBy: sort.by, sortDir: sort.dir, search: search || undefined, role: roleFilter || undefined });
+    const { data, isLoading } = useDeanUsers({
+        sortBy: sort.by,
+        sortDir: sort.dir,
+        search: search || undefined,
+        role: roleFilter || undefined,
+        instituteId: selectedInstituteId || undefined,
+    });
     const users: DeanUser[] = data?.data || [];
 
     function handleSort(key: string) {
@@ -409,6 +419,37 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
                 {isAdmin && <Button size="sm" onClick={openCreate}><Plus className="w-4 h-4" /> Nowy użytkownik</Button>}
             </div>
 
+            {institutes.length > 0 && (
+                <div className="rounded-lg border bg-card p-3 shadow-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={() => setSelectedInstituteId('')}
+                            className={`rounded-md border px-3 py-1.5 text-xs font-bold transition-all ${
+                                selectedInstituteId === ''
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-background text-muted-foreground hover:bg-muted'
+                            }`}
+                        >
+                            Wszystkie
+                        </button>
+                        {institutes.map((inst) => (
+                            <button
+                                key={inst.id}
+                                onClick={() => setSelectedInstituteId(inst.id)}
+                                className={`rounded-md border px-3 py-1.5 text-xs font-bold transition-all ${
+                                    selectedInstituteId === inst.id
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-background text-muted-foreground hover:bg-muted'
+                                }`}
+                                title={inst.name}
+                            >
+                                {getInstituteShortLabel(inst.name, inst.shortCode)}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             <div className="rounded-lg border bg-white overflow-hidden">
                 <Table>
                     <TableHeader>
@@ -433,7 +474,7 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
                                     <TableCell className="font-medium">{u.name}</TableCell>
                                     <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
                                     <TableCell><Badge variant="outline" className="text-xs">{u.role}</Badge></TableCell>
-                                    <TableCell>{u.institute}</TableCell>
+                                    <TableCell title={u.institute}>{getInstituteShortLabel(u.institute, u.shortCode)}</TableCell>
                                     <TableCell className="text-sm text-muted-foreground">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString('pl-PL') : 'nigdy'}</TableCell>
                                     <TableCell>
                                         {u.activityStatus === 'active' ? <Badge className="bg-emerald-600 text-[10px]">Aktywny</Badge> :
@@ -523,11 +564,15 @@ function UsersTab({ isAdmin }: { isAdmin: boolean }) {
 
 function AdminCoverageTab() {
     const queryClient = useQueryClient();
+    const [selectedInstituteId, setSelectedInstituteId] = useState('');
     const { data, isLoading } = useQuery({
         queryKey: ['superadmin-institute-admins'],
         queryFn: () => fetchApi('/superadmin/institute-admins'),
     });
     const coverage: any[] = data?.data || [];
+    const filteredCoverage = selectedInstituteId
+        ? coverage.filter((inst) => inst.id === selectedInstituteId)
+        : coverage;
 
     // Dialog state
     const [selectedInst, setSelectedInst] = useState<any | null>(null);
@@ -585,9 +630,37 @@ function AdminCoverageTab() {
                     <div className="p-3 bg-primary/10 rounded-lg"><ShieldCheck className="h-6 w-6 text-primary" /></div>
                     <div>
                         <h2 className="text-xl font-bold tracking-tight text-primary">Pokrycie administratorami</h2>
-                        <p className="text-sm text-muted-foreground">{coverage.length} jednostek — {coverage.filter((i) => !i.hasAdmin).length} bez admina</p>
+                        <p className="text-sm text-muted-foreground">{filteredCoverage.length} jednostek — {filteredCoverage.filter((i) => !i.hasAdmin).length} bez admina</p>
                     </div>
                 </div>
+                {coverage.length > 0 && (
+                    <div className="mb-4 flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={() => setSelectedInstituteId('')}
+                            className={`rounded-md border px-3 py-1.5 text-xs font-bold transition-all ${
+                                selectedInstituteId === ''
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-background text-muted-foreground hover:bg-muted'
+                            }`}
+                        >
+                            Wszystkie
+                        </button>
+                        {coverage.map((inst) => (
+                            <button
+                                key={inst.id}
+                                onClick={() => setSelectedInstituteId(inst.id)}
+                                className={`rounded-md border px-3 py-1.5 text-xs font-bold transition-all ${
+                                    selectedInstituteId === inst.id
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-background text-muted-foreground hover:bg-muted'
+                                }`}
+                                title={inst.name}
+                            >
+                                {getInstituteShortLabel(inst.name, inst.shortCode)}
+                            </button>
+                        ))}
+                    </div>
+                )}
                 <Table>
                     <TableHeader>
                         <TableRow><TableHead>Nazwa jednostki</TableHead><TableHead className="text-center">Kod</TableHead><TableHead className="text-center">Użytkownicy</TableHead>
@@ -596,10 +669,10 @@ function AdminCoverageTab() {
                     <TableBody>
                         {isLoading ? (
                             <TableRow><TableCell colSpan={6} className="text-center py-12"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></TableCell></TableRow>
-                        ) : coverage.length === 0 ? (
+                        ) : filteredCoverage.length === 0 ? (
                             <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">Brak danych.</TableCell></TableRow>
                         ) : (
-                            coverage.map((inst) => (
+                            filteredCoverage.map((inst) => (
                                 <TableRow key={inst.id} className={!inst.hasAdmin ? 'bg-status-danger-bg/30' : undefined}>
                                     <TableCell className="font-semibold text-primary">{inst.name}</TableCell>
                                     <TableCell className="text-center"><span className="px-2 py-0.5 rounded bg-accent/10 text-accent text-xs font-bold border border-accent/20">{inst.shortCode || '—'}</span></TableCell>
@@ -766,6 +839,7 @@ function AdminCoverageTab() {
 
 function DeanStaffingRequestsTab() {
     const queryClient = useQueryClient();
+    const [selectedInstituteName, setSelectedInstituteName] = useState('');
     const { data: requestsData, isLoading } = useQuery({
         queryKey: ['dean-staffing-requests'],
         queryFn: () => fetchApi('/staffing-requests?scope=global'),
@@ -782,15 +856,14 @@ function DeanStaffingRequestsTab() {
     });
 
     const handleExportCSV = () => {
-        const requests = requestsData?.data || [];
-        if (requests.length === 0) {
+        if (visibleRequests.length === 0) {
             toast.error('Brak danych do eksportu');
             return;
         }
 
         const headers = ['Jednostka', 'Przedmiot', 'Kod przedmiotu', 'Typ', 'Semestr', 'Liczba grup', 'Liczba godzin', 'Uwagi Instytutu', 'Notatki Dziekanatu', 'Status'];
         
-        const rows = requests.map((req: any) => [
+        const rows = visibleRequests.map((req: any) => [
             req.institute?.name || 'Nieznana jednostka',
             req.course.name,
             req.course.code,
@@ -828,9 +901,24 @@ function DeanStaffingRequestsTab() {
     if (isLoading) return <div className="p-8 text-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>;
 
     const requests = requestsData?.data || [];
+    const instituteOptions = Object.values(
+        requests.reduce((acc: Record<string, { name: string; shortCode?: string | null }>, req: any) => {
+            const instName = req.institute?.name || 'Nieznana jednostka';
+            if (!acc[instName]) {
+                acc[instName] = {
+                    name: instName,
+                    shortCode: req.institute?.shortCode || null,
+                };
+            }
+            return acc;
+        }, {})
+    );
+    const visibleRequests = selectedInstituteName
+        ? requests.filter((req: any) => (req.institute?.name || 'Nieznana jednostka') === selectedInstituteName)
+        : requests;
 
     // Pogrupuj po jednostkach
-    const grouped = requests.reduce((acc: any, req: any) => {
+    const grouped = visibleRequests.reduce((acc: any, req: any) => {
         const instName = req.institute?.name || 'Nieznana jednostka';
         if (!acc[instName]) acc[instName] = [];
         acc[instName].push(req);
@@ -869,6 +957,37 @@ function DeanStaffingRequestsTab() {
                     Drukuj
                 </Button>
             </div>
+
+            {instituteOptions.length > 0 && (
+                <div className="rounded-lg border bg-card p-3 shadow-sm print:hidden">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={() => setSelectedInstituteName('')}
+                            className={`rounded-md border px-3 py-1.5 text-xs font-bold transition-all ${
+                                selectedInstituteName === ''
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-background text-muted-foreground hover:bg-muted'
+                            }`}
+                        >
+                            Wszystkie
+                        </button>
+                        {instituteOptions.map((inst) => (
+                            <button
+                                key={inst.name}
+                                onClick={() => setSelectedInstituteName(inst.name)}
+                                className={`rounded-md border px-3 py-1.5 text-xs font-bold transition-all ${
+                                    selectedInstituteName === inst.name
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-background text-muted-foreground hover:bg-muted'
+                                }`}
+                                title={inst.name}
+                            >
+                                {getInstituteShortLabel(inst.name, inst.shortCode)}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Nagłówek widoczny tylko przy drukowaniu */}
             <div className="hidden print:block mb-6">

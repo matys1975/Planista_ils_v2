@@ -1,137 +1,209 @@
-import { useAuthStore } from '../store/auth';
+import { useEffect, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { fetchApi } from '../lib/api';
+import { useAuthStore } from '../store/auth';
 import {
-  Building2,
-  Calendar,
-  Users,
-  BookOpen,
-  LayoutDashboard,
-  BarChart3,
+  AlertTriangle,
   ArrowRight,
-  Shield,
-  User,
+  BookOpen,
   Database,
   Download,
-  Upload,
-  Loader2,
   History,
-  AlertTriangle,
-  Crown
+  Loader2,
+  Upload,
+  User,
 } from 'lucide-react';
 
-const TILES = [
-  {
-    title: 'Harmonogram (Grid)',
-    description: 'Układaj i zarządzaj planem zajęć w formie wizualnej siatki.',
-    icon: LayoutDashboard,
-    link: '/harmonogram',
-    color: 'bg-navy-mid/10 text-navy-mid',
-    primary: true
-  },
-  {
-    title: 'Karty Pensum',
-    description: 'Wygeneruj i przeanalizuj obciążenia dydaktyczne.',
-    icon: BarChart3,
-    link: '/obciazenia',
-    color: 'bg-primary/10 text-primary',
-    primary: true
-  },
-  {
-    title: 'Podręcznik Użytkownika',
-    description: 'Instrukcje, wskazówki i pomoc w obsłudze systemu Planista ILS.',
-    icon: BookOpen,
-    link: '/podrecznik',
-    color: 'bg-gold/10 text-navy-deep',
-    primary: true
-  },
-  {
-    title: 'Semestry',
-    description: 'Zdefiniuj i aktywuj nowe ramy czasowe do układania zajęć.',
-    icon: Calendar,
-    link: '/configuration',
-    search: { tab: 'semesters' },
-    color: 'bg-navy-deep/5 text-navy-dark'
-  },
-  {
-    title: 'Katalog Grup',
-    description: 'Baza wszystkich struktur studenckich na kierunkach.',
-    icon: Users,
-    link: '/configuration',
-    search: { tab: 'groups' },
-    color: 'bg-navy-deep/5 text-navy-dark'
-  },
-  {
-    title: 'Przydział Sal',
-    description: 'Zdefiniuj pule sal wykładowych, laborek i gabinetów.',
-    icon: Building2,
-    link: '/dictionary/rooms',
-    color: 'bg-navy-deep/5 text-navy-dark'
-  },
-  {
-    title: 'Prowadzący',
-    description: 'Baza danych personelu (wykładowców/ćwiczeniowców).',
-    icon: Users,
-    link: '/dictionary/teachers',
-    color: 'bg-navy-deep/5 text-navy-dark'
-  },
-  {
-    title: 'Katalog przedmiotów',
-    description: 'Moduł zarządzania przedmiotami i przydziałami prowadzących w ILS.',
-    icon: BookOpen,
-    link: '/dictionary/courses',
-    color: 'bg-navy-deep/5 text-navy-dark'
-  },
-  {
-    title: 'Mój Profil',
-    description: 'Zmień swoje dane osobowe i hasło dostępu.',
-    icon: User,
-    link: '/profil',
-    color: 'bg-gold/10 text-gold'
-  }
-];
+type BackupItem = {
+  name: string;
+  size: number;
+  createdAt: string;
+};
 
-const ADMIN_TILES = [
-  {
-    title: 'Użytkownicy',
-    description: 'Zarządzaj kontami, rolami i uprawnieniami systemu.',
-    icon: Shield,
-    link: '/admin/users',
-    color: 'bg-status-danger-bg text-status-danger-fg',
-    primary: true
-  }
-];
+function QuickLinkCard({
+  title,
+  description,
+  to,
+  icon: Icon,
+  accentClass,
+}: {
+  title: string;
+  description: string;
+  to: string;
+  icon: typeof User;
+  accentClass: string;
+}) {
+  return (
+    <Link
+      to={to as any}
+      className="group flex min-h-[184px] flex-col justify-between rounded-lg border border-border/70 bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-navy-mid/30 hover:shadow-lg"
+    >
+      <div className="space-y-4">
+        <div className={`inline-flex rounded-lg p-3 ${accentClass}`}>
+          <Icon className="h-6 w-6" strokeWidth={1.7} />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+          <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+        </div>
+      </div>
 
-const FACULTY_TILES = [
-  {
-    title: 'Panel Wydziałowy',
-    description: 'Przegląd jednostek, obciążenia dydaktyczne, raporty i statystyki wydziałowe.',
-    icon: Building2,
-    link: '/faculty/dashboard',
-    color: 'bg-gold/10 text-navy-deep',
-    primary: true
-  }
-];
+      <div className="mt-6 flex items-center text-sm font-medium text-primary group-hover:underline">
+        Otwórz
+        <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
+      </div>
+    </Link>
+  );
+}
 
-import { useState, useEffect } from 'react';
+function BackupCard({
+  lastBackup,
+  backupList,
+  showBackupPanel,
+  isBackingUp,
+  isRestoring,
+  onBackup,
+  onRestore,
+  onToggleHistory,
+  onDownloadHistory,
+}: {
+  lastBackup: string | null;
+  backupList: BackupItem[];
+  showBackupPanel: boolean;
+  isBackingUp: boolean;
+  isRestoring: boolean;
+  onBackup: () => Promise<void>;
+  onRestore: () => void;
+  onToggleHistory: () => void;
+  onDownloadHistory: (filename: string) => Promise<void>;
+}) {
+  return (
+    <div className="rounded-lg border border-navy-mid/20 bg-card p-5 shadow-sm">
+      <div className="mb-4 flex items-start gap-3">
+        <div className="rounded-lg bg-navy-mid/10 p-3 text-navy-mid">
+          <Database className="h-6 w-6" strokeWidth={1.7} />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold text-foreground">Backup i restore</h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            Ręczny backup, przywracanie z pliku i szybki dostęp do historii kopii.
+          </p>
+        </div>
+      </div>
+
+      {lastBackup && (
+        <p className="mb-4 text-xs text-muted-foreground">
+          Ostatni backup: {new Date(lastBackup).toLocaleString('pl-PL')}
+        </p>
+      )}
+
+      <div className="space-y-2">
+        <button
+          onClick={() => void onBackup()}
+          disabled={isBackingUp || isRestoring}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-navy-deep px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-navy-dark disabled:cursor-wait disabled:opacity-50"
+        >
+          {isBackingUp ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Tworzę backup...
+            </>
+          ) : (
+            <>
+              <Download className="h-4 w-4" /> Pobierz backup bazy
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={onRestore}
+          disabled={isBackingUp || isRestoring}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-medium text-navy-deep transition-colors hover:bg-[#C49A45] disabled:cursor-wait disabled:opacity-50"
+        >
+          {isRestoring ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Przywracam bazę...
+            </>
+          ) : (
+            <>
+              <Upload className="h-4 w-4" /> Wgraj backup z pliku
+            </>
+          )}
+        </button>
+
+        {backupList.length > 0 && (
+          <button
+            onClick={onToggleHistory}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted"
+          >
+            <History className="h-4 w-4" />
+            {showBackupPanel ? 'Ukryj historię' : `Historia backupów (${backupList.length})`}
+          </button>
+        )}
+      </div>
+
+      {showBackupPanel && backupList.length > 0 && (
+        <div className="mt-4 max-h-48 space-y-1 overflow-y-auto border-t border-border pt-4">
+          {backupList.slice(0, 10).map((item) => (
+            <div
+              key={item.name}
+              className="group flex items-center justify-between rounded-md px-2 py-1.5 text-xs hover:bg-muted/50"
+            >
+              <div className="mr-2 min-w-0 flex-1 truncate">
+                <span className="font-mono text-muted-foreground">{item.name}</span>
+                <span className="ml-2 text-muted-foreground">({(item.size / 1024).toFixed(0)} KB)</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="whitespace-nowrap text-muted-foreground">
+                  {new Date(item.createdAt).toLocaleString('pl-PL', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+                <button
+                  onClick={() => void onDownloadHistory(item.name)}
+                  className="rounded bg-navy-mid/10 p-1 text-navy-mid opacity-0 transition-opacity hover:bg-navy-mid/20 hover:text-navy-deep group-hover:opacity-100"
+                  title="Pobierz ten backup"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4 rounded-lg border border-status-warning-fg/20 bg-status-warning-bg p-3">
+        <div className="flex gap-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-status-warning-fg" />
+          <p className="text-xs leading-5 text-status-warning-fg">
+            <strong>Transfer danych:</strong> pobierz backup na jednym komputerze, prześlij plik
+            `.sql` na drugi i wgraj go przyciskiem powyżej.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function Home() {
-  const { name, role } = useAuthStore();
+  const { name, role, mustChangePassword } = useAuthStore();
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [lastBackup, setLastBackup] = useState<string | null>(null);
-  const [backupList, setBackupList] = useState<{ name: string; size: number; createdAt: string }[]>([]);
+  const [backupList, setBackupList] = useState<BackupItem[]>([]);
   const [showBackupPanel, setShowBackupPanel] = useState(false);
 
-  // Pobierz info o backupach
+  const isSuperAdmin = role === 'SUPER_ADMIN';
+
   const refreshBackups = async () => {
     try {
-      const data = await fetchApi('/admin/backups');
+      const data = await fetchApi<{ data?: BackupItem[] }>('/admin/backups');
       if (data.data) {
         setBackupList(data.data);
-        if (data.data.length > 0) {
-          setLastBackup(data.data[0].createdAt);
-        }
+        setLastBackup(data.data[0]?.createdAt ?? null);
       }
     } catch (err) {
       console.error('Błąd pobierania listy backupów', err);
@@ -139,16 +211,17 @@ export function Home() {
   };
 
   useEffect(() => {
-    if (role === 'ADMIN' || role === 'SUPER_ADMIN') refreshBackups();
-  }, [role]);
+    if (isSuperAdmin) {
+      void refreshBackups();
+    }
+  }, [isSuperAdmin]);
 
   const handleBackup = async () => {
     setIsBackingUp(true);
     try {
-      // fetchApi dla backupu (zwróci tekst SQL)
       const res = await fetch('/api/v1/admin/backup', {
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
       });
 
       if (!res.ok) {
@@ -161,13 +234,14 @@ export function Home() {
       const a = document.createElement('a');
       const disposition = res.headers.get('Content-Disposition') || '';
       const match = disposition.match(/filename="(.+)"/);
+
       a.download = match ? match[1] : 'backup_bazy.sql';
       a.href = url;
       a.click();
       window.URL.revokeObjectURL(url);
 
       setLastBackup(new Date().toISOString());
-      refreshBackups();
+      await refreshBackups();
     } catch (err: any) {
       alert(`Błąd: ${err.message}`);
     } finally {
@@ -175,7 +249,7 @@ export function Home() {
     }
   };
 
-  const handleRestore = async () => {
+  const handleRestore = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.sql';
@@ -185,11 +259,11 @@ export function Home() {
 
       const confirmed = window.confirm(
         `⚠️ UWAGA: Przywracanie bazy danych!\n\n` +
-        `Plik: ${file.name} (${(file.size / 1024).toFixed(0)} KB)\n\n` +
-        `Ta operacja:\n` +
-        `• Automatycznie utworzy backup bezpieczeństwa obecnych danych\n` +
-        `• Nadpisze bieżącą bazę danych zawartością pliku\n\n` +
-        `Czy na pewno chcesz kontynuować?`
+          `Plik: ${file.name} (${(file.size / 1024).toFixed(0)} KB)\n\n` +
+          `Ta operacja:\n` +
+          `• automatycznie utworzy backup bezpieczeństwa obecnych danych\n` +
+          `• nadpisze bieżącą bazę danych zawartością pliku\n\n` +
+          `Czy na pewno chcesz kontynuować?`,
       );
       if (!confirmed) return;
 
@@ -198,13 +272,13 @@ export function Home() {
         const formData = new FormData();
         formData.append('file', file);
 
-        const result = await fetchApi('/admin/restore', {
+        const result = await fetchApi<{ message: string }>('/admin/restore', {
           method: 'POST',
           body: formData,
         });
 
         alert(`✅ ${result.message}`);
-        refreshBackups();
+        await refreshBackups();
         window.location.reload();
       } catch (err: any) {
         alert(`❌ Błąd przywracania: ${err.message}`);
@@ -219,14 +293,14 @@ export function Home() {
     try {
       const res = await fetch(`/api/v1/admin/backups/${filename}`, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
       });
 
       if (!res.ok) {
         let errMsg = 'Błąd pobierania pliku';
         try {
-            const err = await res.json();
-            errMsg = err.error || errMsg;
+          const err = await res.json();
+          errMsg = err.error || errMsg;
         } catch {}
         throw new Error(errMsg);
       }
@@ -244,132 +318,61 @@ export function Home() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 p-4 sm:p-6 animate-in fade-in duration-500">
-
-      {/* Grid of tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {[...TILES, ...(role === 'ADMIN' || role === 'SUPER_ADMIN' ? ADMIN_TILES : []), ...(role === 'DEAN' || role === 'SUPER_ADMIN' ? FACULTY_TILES : [])].map((tile, i) => {
-          const Icon = tile.icon;
-          return (
-            <Link
-              key={i}
-              to={tile.link as any}
-              search={'search' in tile ? (tile as any).search : undefined}
-              className={`group flex items-start flex-col justify-between p-6 rounded-2xl border bg-card transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${tile.primary ? 'border-primary/50 shadow-md rings-1 ring-primary/20' : 'hover:border-border'
-                }`}
-            >
-              <div className="flex items-center gap-4 mb-4">
-                <div className={`p-3 rounded-xl ${tile.color}`}>
-                  <Icon className="w-8 h-8" strokeWidth={1.5} />
-                </div>
-                <h3 className="font-semibold text-lg">{tile.title}</h3>
-              </div>
-
-              <p className="text-muted-foreground text-sm mb-6 flex-1">
-                {tile.description}
-              </p>
-
-              <div className="flex items-center text-sm font-medium text-primary mt-auto group-hover:underline">
-                Przejdź <ArrowRight className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
-              </div>
-            </Link>
-          );
-        })}
-
-        {/* Backup Tile — tylko dla SUPER_ADMIN */}
-        {role === 'SUPER_ADMIN' && (
-          <div className="group flex items-start flex-col justify-between p-6 rounded-2xl border bg-card border-navy-mid/50 shadow-md">
-            <div className="flex items-center gap-4 mb-4 w-full">
-              <div className="p-3 rounded-xl bg-navy-mid/10 text-navy-mid">
-                <Database className="w-8 h-8" strokeWidth={1.5} />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg">Baza danych</h3>
-                <p className="text-xs text-muted-foreground">Backup, przywracanie i transfer danych</p>
-              </div>
-            </div>
-
-            {lastBackup && (
-              <p className="text-xs text-muted-foreground mb-3">
-                Ostatni backup: {new Date(lastBackup).toLocaleString('pl-PL')}
-              </p>
-            )}
-
-            <div className="w-full space-y-2">
-              {/* Backup button */}
-              <button
-                onClick={handleBackup}
-                disabled={isBackingUp || isRestoring}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-navy-deep text-white font-medium text-sm hover:bg-navy-dark transition-colors disabled:opacity-50 disabled:cursor-wait shadow-sm"
-              >
-                {isBackingUp ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Tworzę backup...</>
-                ) : (
-                  <><Download className="w-4 h-4" /> Pobierz backup bazy</>
-                )}
-              </button>
-
-              {/* Restore button */}
-              <button
-                onClick={handleRestore}
-                disabled={isBackingUp || isRestoring}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gold text-navy-deep font-medium text-sm hover:bg-[#C49A45] transition-colors disabled:opacity-50 disabled:cursor-wait shadow-sm"
-              >
-                {isRestoring ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Przywracam bazę...</>
-                ) : (
-                  <><Upload className="w-4 h-4" /> Wgraj backup z pliku (.sql)</>
-                )}
-              </button>
-
-              {/* Backup history toggle */}
-              {backupList.length > 0 && (
-                <button
-                  onClick={() => setShowBackupPanel(!showBackupPanel)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:bg-muted transition-colors"
-                >
-                  <History className="w-4 h-4" />
-                  {showBackupPanel ? 'Ukryj historię' : `Historia backupów (${backupList.length})`}
-                </button>
-              )}
-            </div>
-
-            {/* Backup history list */}
-            {showBackupPanel && backupList.length > 0 && (
-              <div className="w-full mt-3 space-y-1 max-h-48 overflow-y-auto border-t pt-3">
-                {backupList.slice(0, 10).map((b) => (
-                  <div key={b.name} className="flex items-center justify-between text-xs py-1.5 px-2 rounded hover:bg-muted/50 group">
-                    <div className="truncate flex-1 mr-2">
-                      <span className="font-mono text-muted-foreground">{b.name}</span>
-                      <span className="text-muted-foreground ml-2">({(b.size / 1024).toFixed(0)} KB)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground whitespace-nowrap">
-                        {new Date(b.createdAt).toLocaleString('pl-PL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <button 
-                        onClick={() => handleDownloadHistory(b.name)}
-                        className="p-1 rounded bg-navy-mid/10 text-navy-mid hover:bg-navy-mid/20 hover:text-navy-deep opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Pobierz ten backup"
-                      >
-                        <Download className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Info box */}
-            <div className="w-full mt-3 p-3 rounded-lg bg-status-warning-bg border border-status-warning-fg/20">
-              <div className="flex gap-2">
-                <AlertTriangle className="w-4 h-4 text-status-warning-fg flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-status-warning-fg">
-                  <strong>Transfer danych:</strong> Pobierz backup na jednym komputerze, prześlij plik .sql na drugi, i wgraj go przyciskiem powyżej.
-                </p>
-              </div>
-            </div>
+    <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6 animate-in fade-in duration-500">
+      <section className="rounded-lg border border-border/60 bg-card px-5 py-6 shadow-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">
+              Witaj ponownie{ name ? `, ${name}` : ''}.
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Panel startowy</h1>
+            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+              Główna nawigacja znajduje się w menu po lewej stronie. Tutaj zostawiamy tylko
+              najważniejsze skróty związane z Twoim kontem i pomocą.
+            </p>
           </div>
+
+          <div className="inline-flex w-fit items-center rounded-full border border-border bg-muted/40 px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Rola: {role}
+          </div>
+        </div>
+
+        {mustChangePassword && (
+          <div className="mt-4 rounded-lg border border-status-warning-fg/20 bg-status-warning-bg px-4 py-3 text-sm text-status-warning-fg">
+            Zanim przejdziesz do dalszej pracy, zmień hasło w swoim profilu.
+          </div>
+        )}
+      </section>
+
+      <div className={`grid gap-4 ${isSuperAdmin ? 'xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(360px,1fr)]' : 'md:grid-cols-2'}`}>
+        <QuickLinkCard
+          title="Mój profil"
+          description="Zmień swoje dane, hasło i sprawdź ustawienia konta."
+          to="/profil"
+          icon={User}
+          accentClass="bg-gold/10 text-gold"
+        />
+
+        <QuickLinkCard
+          title="Podręcznik"
+          description="Instrukcje, wskazówki i pomoc do pracy w systemie."
+          to="/podrecznik"
+          icon={BookOpen}
+          accentClass="bg-navy-mid/10 text-navy-mid"
+        />
+
+        {isSuperAdmin && (
+          <BackupCard
+            lastBackup={lastBackup}
+            backupList={backupList}
+            showBackupPanel={showBackupPanel}
+            isBackingUp={isBackingUp}
+            isRestoring={isRestoring}
+            onBackup={handleBackup}
+            onRestore={handleRestore}
+            onToggleHistory={() => setShowBackupPanel((value) => !value)}
+            onDownloadHistory={handleDownloadHistory}
+          />
         )}
       </div>
     </div>

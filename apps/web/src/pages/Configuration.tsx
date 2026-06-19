@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings, CalendarDays, GraduationCap, Users2, Plus, Building2, Filter } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { Settings, CalendarDays, GraduationCap, Users2, Building2 } from 'lucide-react';
 import { useSearch } from '@tanstack/react-router';
 
 
@@ -12,6 +11,7 @@ import { DictionaryGroups } from './DictionaryGroups';
 import { DictionaryRooms } from './DictionaryRooms';
 import { fetchApi } from '../lib/api';
 import { useAuthStore } from '../store/auth';
+import { InstituteTilesFilter } from '../components/institutes/InstituteTilesFilter';
 
 export function Configuration() {
   const searchParams = useSearch({ strict: false }) as { tab?: string };
@@ -26,7 +26,6 @@ export function Configuration() {
       setActiveTab(searchParams.tab);
     }
   }, [searchParams?.tab]);
-  const queryClient = useQueryClient();
   const { role } = useAuthStore();
 
   // Institute filter — only for DEAN and SUPER_ADMIN
@@ -107,34 +106,6 @@ export function Configuration() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Institute Filter — only for DEAN / SUPER_ADMIN */}
-          {showInstituteFilter && activeTab !== 'semesters' && (
-            <div className="flex items-center gap-2 bg-muted/30 border border-border/50 rounded-lg px-3 py-1.5">
-              <Filter className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              <select
-                value={selectedInstituteId}
-                onChange={(e) => setSelectedInstituteId(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-foreground border-none outline-none cursor-pointer pr-1 appearance-none"
-                style={{ backgroundImage: 'none' }}
-              >
-                <option value="all">Wszystkie jednostki</option>
-                {institutes.map((inst: any) => (
-                  <option key={inst.id} value={inst.id}>
-                    {inst.shortCode ? `${inst.shortCode} — ${inst.name}` : inst.name}
-                  </option>
-                ))}
-              </select>
-              {selectedInstituteId !== 'all' && (
-                <button
-                  onClick={() => setSelectedInstituteId('all')}
-                  className="text-[10px] font-bold text-primary hover:text-primary/80 transition-colors whitespace-nowrap"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          )}
-
           {/* Dynamic Context Pills based on active tab */}
           <div className="flex items-center gap-1.5">
             {activeTab === 'semesters' && (
@@ -152,6 +123,31 @@ export function Configuration() {
           </div>
         </div>
       </div>
+
+      {showInstituteFilter && activeTab !== 'semesters' && institutes.length > 0 && (
+        <InstituteTilesFilter
+          items={institutes.map((inst: any) => ({
+            id: inst.id,
+            name: inst.name,
+            shortCode: inst.shortCode,
+            count:
+              activeTab === 'majors'
+                ? (majorsData?.data?.filter((m: any) => m.instituteId === inst.id).length || 0)
+                : activeTab === 'groups'
+                  ? (groupsData?.data?.filter((g: any) => g.instituteId === inst.id).length || 0)
+                  : (roomsData?.data?.filter((r: any) => r.instituteId === inst.id).length || 0),
+          }))}
+          selectedId={selectedInstituteId}
+          onSelect={setSelectedInstituteId}
+          allCount={
+            activeTab === 'majors'
+              ? (majorsData?.data?.length || 0)
+              : activeTab === 'groups'
+                ? (groupsData?.data?.length || 0)
+                : (roomsData?.data?.length || 0)
+          }
+        />
+      )}
 
       {/* ─── TAB CONTENT ─── */}
       <div className="animate-in fade-in duration-500">
