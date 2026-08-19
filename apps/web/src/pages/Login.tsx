@@ -53,22 +53,12 @@ export function LoginPage() {
   return (
     <div className="w-full min-h-screen flex flex-col lg:flex-row bg-cream font-sans selection:bg-navy-mid/30">
       {/* Sekcja graficzna (lewa) */}
-      <div className="relative hidden lg:flex flex-col justify-end w-1/2 bg-navy-deep text-white overflow-hidden border-r border-navy-dark/30">
-        <div className="absolute inset-0 w-full h-full animate-star-tunnel">
-          <img
-            src="/tlo_login.png"
-            alt="Tło logowania"
-            className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity animate-warp-shake scale-[1.03] origin-center"
-          />
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-navy-deep/95 via-navy-deep/40 to-transparent" />
-
-        <div className="relative z-10 p-12 max-w-xl">
-          <h2 className="text-5xl font-bold mb-4 leading-snug font-display text-white">Nadlatuję z pomocą</h2>
-          <p className="text-white/70 text-xl font-medium leading-relaxed">
-            Twój inteligentny asystent do układania idealnych planów zajęć.
-          </p>
-        </div>
+      <div className="relative hidden lg:block w-1/2 bg-navy-deep overflow-hidden border-r border-navy-dark/30">
+        <img
+          src="/tlo_login.webp"
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover"
+        />
       </div>
 
       {/* Sekcja logowania (prawa) */}
