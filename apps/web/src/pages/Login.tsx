@@ -57,13 +57,13 @@ export function LoginPage() {
         <img
           src="/tlo_login.webp"
           alt=""
-          className="absolute inset-0 w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-contain object-center"
         />
       </div>
 
       {/* Sekcja logowania (prawa) */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 relative">
-        <div className="w-full max-w-md space-y-8 animate-in fade-in zoom-in-95 duration-500">
+        <div className="w-full max-w-md space-y-8 animate-in fade-in zoom-in-95 duration-500 lg:translate-y-4">
 
           <div className="flex items-center gap-3 mb-10 justify-center lg:justify-start">
             <div className="p-2 bg-gold/10 rounded-lg border border-gold/20">
