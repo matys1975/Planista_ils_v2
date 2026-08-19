@@ -53,7 +53,7 @@ export function LoginPage() {
   return (
     <div className="w-full min-h-screen flex flex-col lg:flex-row bg-cream font-sans selection:bg-navy-mid/30">
       {/* Sekcja graficzna (lewa) */}
-      <div className="relative hidden lg:block w-1/2 bg-navy-deep overflow-hidden border-r border-navy-dark/30">
+      <div className="relative hidden lg:block lg:w-[min(50%,83.8vh)] lg:flex-none bg-navy-deep overflow-hidden border-r border-navy-dark/30">
         <img
           src="/tlo_login.webp"
           alt=""
