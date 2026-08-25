@@ -228,6 +228,17 @@ function StatusBadge({ status }: { status: 'unassigned' | 'partial' | 'full' | '
 
 function AllocationCell({ course, onAllocate }: { course: Course; onAllocate: (c: Course) => void }) {
   const allocations = (course as any).allocations ?? [];
+  const groupNumbers = new Map(
+    Array.from(
+      new Map(
+        allocations.flatMap((allocation: any) => allocation.groups ?? [])
+          .map((groupAllocation: any) => [groupAllocation.groupId, groupAllocation.group?.name ?? ''])
+      ).entries()
+    )
+      .sort(([, firstName], [, secondName]) => firstName.localeCompare(secondName, 'pl'))
+      .map(([groupId], index) => [groupId, index + 1])
+  );
+
   return (
     <div className="flex flex-col gap-2 items-start">
       <button
@@ -255,7 +266,7 @@ function AllocationCell({ course, onAllocate }: { course: Course; onAllocate: (c
                   </button>
                   {alloc.groups?.length > 0 && (
                     <span className="text-muted-foreground font-medium">
-                      · {alloc.groups.map((groupAllocation: any) => groupAllocation.group.name).join(', ')}
+                      · {alloc.groups.map((groupAllocation: any) => `gr${groupNumbers.get(groupAllocation.groupId)}`).join(', ')}
                     </span>
                   )}
                   <span className="text-[8px] bg-muted px-1 rounded uppercase font-bold">{alloc.assignedHours}h</span>
@@ -269,7 +280,7 @@ function AllocationCell({ course, onAllocate }: { course: Course; onAllocate: (c
                   {alloc.groups?.length > 0 && (
                     <div className="mt-2 pt-1 border-t flex flex-wrap gap-1">
                       {alloc.groups.map((g: any) => (
-                        <span key={g.groupId} className="bg-primary/10 text-primary px-1 rounded text-[10px]">{g.group.name}</span>
+                        <span key={g.groupId} className="bg-primary/10 text-primary px-1 rounded text-[10px]">gr{groupNumbers.get(g.groupId)}</span>
                       ))}
                     </div>
                   )}
