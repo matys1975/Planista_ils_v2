@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pencil, Trash2, AlertCircle, CheckCircle2, Clock, ArrowUpCircle, Info } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -20,6 +21,15 @@ export function decodeType(t: string): string {
     S: 'Seminarium (S)', Pr: 'Praktyki (Pr)', K: 'Konwersacja (K)',
   };
   return map[t] ?? t;
+}
+
+async function copyToClipboard(value: string, label: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+    toast.success(`${label} skopiowano`);
+  } catch {
+    toast.error(`Nie udało się skopiować ${label.toLowerCase()}`);
+  }
 }
 
 interface CoursesTableProps {
@@ -115,7 +125,16 @@ export function CoursesTable({
                             <StatusBadge status={metrics.status} />
                           </TableCell>
 
-                          <TableCell className="font-mono text-[11px] text-muted-foreground">{course.code}</TableCell>
+                          <TableCell>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(course.code, 'Kod przedmiotu')}
+                              className="font-mono text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-primary transition-colors"
+                              title="Kopiuj kod przedmiotu"
+                            >
+                              {course.code}
+                            </button>
+                          </TableCell>
 
                           <TableCell>
                             <div className="flex flex-col">
@@ -225,8 +244,20 @@ function AllocationCell({ course, onAllocate }: { course: Course; onAllocate: (c
           {allocations.map((alloc: any) => (
             <Tooltip key={alloc.id}>
               <TooltipTrigger asChild>
-                <div className="text-[10px] bg-background border border-border/50 shadow-sm rounded px-1.5 py-0.5 flex items-center gap-1 cursor-default">
-                  <span className="text-primary/70 font-semibold">{alloc.teacher.lastName}</span>
+                <div className="text-[10px] bg-background border border-border/50 shadow-sm rounded px-1.5 py-0.5 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(alloc.teacher.lastName, 'Nazwisko')}
+                    className="text-primary/70 font-semibold underline decoration-dotted underline-offset-2 hover:text-primary"
+                    title="Kopiuj nazwisko prowadzącego"
+                  >
+                    {alloc.teacher.lastName}
+                  </button>
+                  {alloc.groups?.length > 0 && (
+                    <span className="text-muted-foreground font-medium">
+                      · {alloc.groups.map((groupAllocation: any) => groupAllocation.group.name).join(', ')}
+                    </span>
+                  )}
                   <span className="text-[8px] bg-muted px-1 rounded uppercase font-bold">{alloc.assignedHours}h</span>
                 </div>
               </TooltipTrigger>

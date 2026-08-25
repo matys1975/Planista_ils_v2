@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
   <title>Planista ILS</title>
   <rect width="64" height="64" rx="14" fill="#102a43"/>
-  <path fill="#d9a441" d="M19 13h15.5C44.2 13 50 18.7 50 27s-5.8 14-15.5 14H28v10h-9V13Zm9 8v12h6.2c4.4 0 6.8-2.1 6.8-6s-2.4-6-6.8-6H28Z"/>
+  <path fill="#d9a441" fill-rule="evenodd" d="M18 52V12h20c10 0 16 5 16 13.5S48 39 38 39H27v13h-9Zm9-21h10c5 0 8-2 8-5.5S42 20 37 20H27v11Z"/>
 </svg>
