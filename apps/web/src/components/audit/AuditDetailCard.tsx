@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
+import { fetchApi } from '../../lib/api';
 import {
   User, BookOpen, Clock, Building2, Users, Calendar,
   ArrowRight, ChevronDown, ChevronUp, Copy, Check,
@@ -279,11 +281,52 @@ export function AuditDetailCard({ log }: AuditDetailCardProps) {
 function CourseAllocationView({ data }: { data: any; oldData?: any; isUpdate?: boolean }) {
   const teacher = data.teacher || {};
   const teacherFullName = `${teacher.title || ''} ${teacher.firstName || ''} ${teacher.lastName || ''}`.trim() || '—';
+  
+  // Pobierz kurs jeśli brak w payloadzie (np. starsze wpisy w bazie)
+  const { data: coursesData } = useQuery({
+    queryKey: ['audit-courses-lookup'],
+    queryFn: () => fetchApi<{ data: any[] }>('/courses'),
+    staleTime: 5 * 60 * 1000,
+    enabled: !data.course?.name && !!data.courseId,
+  });
+
+  const course = data.course || coursesData?.data?.find((c: any) => c.id === data.courseId) || {};
+  const courseName = course.name || data.courseName || (data.courseId ? `Przedmiot (#${data.courseId.slice(0, 8)})` : 'Nie określono');
+  const courseCode = course.code || data.courseCode;
+
   const groupsSummary = parseAndGroupStudentGroups(data.groups || []);
   const totalGroupsCount = Array.isArray(data.groups) ? data.groups.length : 0;
 
   return (
     <div className="rounded-xl border bg-card p-4 space-y-4 shadow-sm">
+      {/* Przedmiot - Główny blok */}
+      <div className="p-3.5 bg-primary/[0.04] rounded-xl border border-primary/15 space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-xs text-primary font-bold">
+            <BookOpen className="w-4 h-4" />
+            Przedmiot dydaktyczny
+          </div>
+          {course.type && (
+            <span className="text-[10px] font-bold uppercase bg-primary/10 text-primary px-2 py-0.5 rounded">
+              Typ: {course.type}
+            </span>
+          )}
+        </div>
+        <h4 className="text-base font-bold text-foreground">
+          {courseName}
+        </h4>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground font-medium">
+          {courseCode && (
+            <span className="font-mono bg-background border px-2 py-0.5 rounded text-[11px]">
+              {courseCode}
+            </span>
+          )}
+          {course.hoursTotal && (
+            <span>• Łączny wymiar: {course.hoursTotal}h</span>
+          )}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Prowadzący */}
         <div className="p-3 bg-muted/20 rounded-lg border space-y-1">
@@ -369,7 +412,16 @@ function ScheduleEntryView({ data }: { data: any; oldData?: any; isUpdate?: bool
     ? `${data.teacher.title || ''} ${data.teacher.firstName || ''} ${data.teacher.lastName || ''}`.trim()
     : 'Brak przypisania';
   const roomName = data.room ? `Sala ${data.room.number} ${data.room.building ? `(${data.room.building})` : ''}` : 'Brak sali';
-  const courseName = data.course?.name || data.courseName || 'Przedmiot';
+  
+  const { data: coursesData } = useQuery({
+    queryKey: ['audit-courses-lookup'],
+    queryFn: () => fetchApi<{ data: any[] }>('/courses'),
+    staleTime: 5 * 60 * 1000,
+    enabled: !data.course?.name && !!data.courseId,
+  });
+
+  const course = data.course || coursesData?.data?.find((c: any) => c.id === data.courseId) || {};
+  const courseName = course.name || data.courseName || (data.courseId ? `Przedmiot (#${data.courseId.slice(0, 8)})` : 'Przedmiot');
 
   return (
     <div className="rounded-xl border bg-card p-4 space-y-3 shadow-sm">
@@ -389,8 +441,8 @@ function ScheduleEntryView({ data }: { data: any; oldData?: any; isUpdate?: bool
         <div className="p-3 bg-muted/20 rounded-lg border">
           <span className="text-[10px] font-bold uppercase text-muted-foreground block">Przedmiot</span>
           <p className="text-sm font-bold text-foreground mt-0.5 truncate" title={courseName}>{courseName}</p>
-          {data.classType && (
-            <span className="text-xs font-bold uppercase text-primary">Typ: {data.classType}</span>
+          {(data.classType || course.type) && (
+            <span className="text-xs font-bold uppercase text-primary">Typ: {data.classType || course.type}</span>
           )}
         </div>
       </div>

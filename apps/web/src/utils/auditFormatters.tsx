@@ -114,25 +114,26 @@ export function getAuditSummary(log: {
     const teacherName = data.teacher
       ? `${data.teacher.title || ''} ${data.teacher.firstName || ''} ${data.teacher.lastName || ''}`.trim()
       : (data.teacherName || 'Prowadzący');
+    const courseName = data.course?.name ? ` ➔ ${data.course.name}` : (data.courseName ? ` ➔ ${data.courseName}` : '');
     const hours = data.assignedHours ? `${data.assignedHours}h` : '';
     const groupsCount = Array.isArray(data.groups) ? data.groups.length : 0;
     const groupsText = groupsCount > 0 ? `${groupsCount} ${groupsCount === 1 ? 'grupa' : groupsCount < 5 ? 'grupy' : 'grup'}` : '';
 
     if (action === 'CREATE') {
       return {
-        title: `Przydzielono: ${teacherName}`,
+        title: `Przydzielono: ${teacherName}${courseName}`,
         details: [hours, groupsText].filter(Boolean).join(' • '),
       };
     }
     if (action === 'UPDATE') {
       return {
-        title: `Zaktualizowano przydział: ${teacherName}`,
-        details: hours ? `Wymiar: ${hours}` : undefined,
+        title: `Zaktualizowano przydział: ${teacherName}${courseName}`,
+        details: [hours, groupsText].filter(Boolean).join(' • ') || undefined,
       };
     }
     if (action === 'DELETE') {
       return {
-        title: `Usunięto przydział: ${teacherName}`,
+        title: `Usunięto przydział: ${teacherName}${courseName}`,
         details: hours ? `Było: ${hours}` : undefined,
       };
     }

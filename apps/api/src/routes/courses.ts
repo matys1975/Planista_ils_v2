@@ -270,7 +270,11 @@ export default async function coursesRoutes(server: FastifyInstance) {
             }))
           }
         },
-        include: { teacher: true, groups: { include: { group: { include: { major: true } } } } }
+        include: {
+          course: { select: { id: true, code: true, name: true, type: true, hoursTotal: true } },
+          teacher: true,
+          groups: { include: { group: { include: { major: true } } } }
+        }
       });
       const ctx = extractAuditContext(request);
       await audit(ctx, { action: 'CREATE', entityType: 'CourseAllocation', entityId: allocation.id, newData: sanitize(allocation) });
@@ -289,7 +293,14 @@ export default async function coursesRoutes(server: FastifyInstance) {
 
       // CourseAllocationGroup ma onDelete: Cascade w schemacie Prisma,
       // więc grupy zostaną usunięte automatycznie razem z alokacją.
-      const oldRecord = await prisma.courseAllocation.findUnique({ where: { id: allocId } });
+      const oldRecord = await prisma.courseAllocation.findUnique({
+        where: { id: allocId },
+        include: {
+          course: { select: { id: true, code: true, name: true, type: true, hoursTotal: true } },
+          teacher: true,
+          groups: { include: { group: { include: { major: true } } } }
+        }
+      });
       await prisma.courseAllocation.delete({ where: { id: allocId } });
       const ctx = extractAuditContext(request);
       await audit(ctx, { action: 'DELETE', entityType: 'CourseAllocation', entityId: allocId, oldData: sanitize(oldRecord) });
@@ -319,7 +330,14 @@ export default async function coursesRoutes(server: FastifyInstance) {
       if (!allocation) return reply.code(404).send({ error: 'Nie znaleziono przydziału lub brak dostępu.' });
       if (!(await ensureAllocationResourcesInScope(payload, scope, reply))) return;
 
-      const oldRecord = await prisma.courseAllocation.findUnique({ where: { id: allocId }, include: { groups: true } });
+      const oldRecord = await prisma.courseAllocation.findUnique({
+        where: { id: allocId },
+        include: {
+          course: { select: { id: true, code: true, name: true, type: true, hoursTotal: true } },
+          teacher: true,
+          groups: { include: { group: { include: { major: true } } } }
+        }
+      });
       // Atomowa aktualizacja w transakcji — chroni przed niespójnymi danymi
       const updated = await prisma.$transaction(async (tx) => {
         const updateData: Prisma.CourseAllocationUpdateInput = {};
@@ -344,7 +362,11 @@ export default async function coursesRoutes(server: FastifyInstance) {
 
         const updatedAlloc = await tx.courseAllocation.findUnique({
           where: { id: allocId },
-          include: { teacher: true, groups: { include: { group: { include: { major: true } } } } }
+          include: {
+            course: { select: { id: true, code: true, name: true, type: true, hoursTotal: true } },
+            teacher: true,
+            groups: { include: { group: { include: { major: true } } } }
+          }
         });
         const ctx = extractAuditContext(request);
         await audit(ctx, { action: 'UPDATE', entityType: 'CourseAllocation', entityId: allocId, oldData: sanitize(oldRecord), newData: sanitize(updatedAlloc) }, tx);
