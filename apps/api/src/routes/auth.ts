@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import z from 'zod';
 import bcrypt from 'bcrypt';
 import type { FastifyRequest } from 'fastify';
+import { audit, extractAuditContext } from '../services/auditService';
 
 
 async function verifyPassword(password: string, hash: string): Promise<boolean> {
@@ -47,11 +48,15 @@ export default async function authRoutes(server: FastifyInstance) {
 
       const user = await prisma.user.findUnique({ where: { email } });
       if (!user) {
+        const ctx = extractAuditContext(request);
+        await audit(ctx, { action: 'LOGIN_FAILURE', entityType: 'User', metadata: { email, reason: 'user_not_found' } });
         return reply.code(401).send({ error: 'Invalid credentials' });
       }
 
       const isValid = await verifyPassword(password, user.passwordHash);
       if (!isValid) {
+        const ctx = extractAuditContext(request);
+        await audit(ctx, { action: 'LOGIN_FAILURE', entityType: 'User', entityId: user.id, metadata: { email, reason: 'invalid_password' } });
         return reply.code(401).send({ error: 'Invalid credentials' });
       }
 
@@ -90,6 +95,15 @@ export default async function authRoutes(server: FastifyInstance) {
           mustChangePassword: user.mustChangePassword,
         });
 
+      // Audyt: LOGIN_SUCCESS (po wysłaniu odpowiedzi, nie blokuje)
+      const ctx = extractAuditContext(request);
+      await audit(ctx, {
+        action: 'LOGIN_SUCCESS',
+        entityType: 'User',
+        entityId: user.id,
+        metadata: { email: user.email, role: user.role },
+      });
+
     } catch (err) {
       server.log.error(err);
       return reply.code(400).send({ error: 'Bad Request' });
@@ -97,6 +111,17 @@ export default async function authRoutes(server: FastifyInstance) {
   });
 
   server.post('/api/v1/auth/logout', async (request, reply) => {
+    // Audyt: LOGOUT — wyciągamy usera przed wyczyszczeniem cookie
+    try {
+      await request.jwtVerify();
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'LOGOUT', entityType: 'User', entityId: ctx.userId ?? undefined });
+    } catch {
+      // Token mógł już wygasnąć — logujemy bez userId
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'LOGOUT', entityType: 'User' });
+    }
+
     reply
       .clearCookie('token', { path: '/', secure: shouldUseSecureCookie(request), sameSite: 'lax' })
       .send({ success: true });

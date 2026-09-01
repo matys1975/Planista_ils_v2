@@ -304,3 +304,26 @@ model StaffingRequest {
   @@index([courseId])
   @@index([semesterId])
 }
+
+// ─── Audyt aktywności ────────────────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  timestamp   DateTime @default(now()) @db.Timestamptz
+  userId      String?
+  userEmail   String?
+  action      String   // LOGIN_SUCCESS | LOGIN_FAILURE | LOGOUT | CREATE | UPDATE | DELETE | PASSWORD_CHANGE | PASSWORD_RESET | ROLE_CHANGE | EXPORT | BULK_IMPORT
+  entityType  String?  // User | Course | Room | Teacher | Group | ScheduleEntry | CourseAllocation | Institute | StaffingRequest | Semester | Major
+  entityId    String?
+  oldData     Json?    @db.JsonB
+  newData     Json?    @db.JsonB
+  ipAddress   String?
+  userAgent   String?
+  requestId   String?
+  metadata    Json?    @db.JsonB
+
+  @@index([timestamp])
+  @@index([userId, timestamp])
+  @@index([entityType, entityId, timestamp])
+  @@index([action])
+}

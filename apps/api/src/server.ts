@@ -21,6 +21,7 @@ import superadminRoutes from './routes/superadmin';
 import deanRoutes from './routes/dean';
 import institutesRoutes from './routes/institutes';
 import staffingRequestsRoutes from './routes/staffingRequests';
+import auditLogRoutes from './routes/auditLog';
 
 import { prisma } from './lib/prisma';
 import { startAutoBackupScheduler } from './services/backup/autoBackupScheduler';
@@ -207,6 +208,7 @@ const start = async () => {
     await server.register(deanRoutes);
     await server.register(institutesRoutes);
     await server.register(staffingRequestsRoutes);
+    await server.register(auditLogRoutes);
 
     // ─── Serwowanie frontendu w trybie produkcyjnym ────────────────────
     if (process.env.NODE_ENV === 'production') {

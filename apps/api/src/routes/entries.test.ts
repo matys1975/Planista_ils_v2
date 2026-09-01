@@ -93,7 +93,7 @@ describe('entries routes', () => {
     });
 
     expect(response.statusCode).toBe(201);
-    expect(entryServiceMock.createEntry).toHaveBeenCalledWith(createPayload, TEST_IDS.instituteA);
+    expect(entryServiceMock.createEntry).toHaveBeenCalledWith(createPayload, TEST_IDS.instituteA, expect.anything());
   });
 
   it('rejects entry creation when the room is outside the current scope', async () => {

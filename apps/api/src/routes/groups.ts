@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { requireRole, extractFullScope, buildInstituteWhere } from '../lib/rbac';
 import { parseIdParam } from '../lib/params';
 import z from 'zod';
+import { audit, extractAuditContext, sanitize } from '../services/auditService';
 
 const createGroupSchema = z.object({
   name: z.string().min(1, 'Nazwa grupy jest wymagana'),
@@ -60,6 +61,8 @@ export default async function groupsRoutes(server: FastifyInstance) {
           ...(instituteId ? { instituteId } : {}),
         },
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'CREATE', entityType: 'Group', entityId: group.id, newData: sanitize(group) });
       return reply.code(201).send({ data: group });
     } catch (err: any) {
       return reply.code(400).send({ error: 'Validation/Constraints Error', details: err.errors });
@@ -90,6 +93,8 @@ export default async function groupsRoutes(server: FastifyInstance) {
         majorName = null;
       }
 
+      const oldRecord = await prisma.group.findUnique({ where: { id }, select: { id: true, name: true, majorId: true, degree: true, year: true, size: true, semesterId: true, instituteId: true } });
+
       const group = await prisma.group.update({
         where: { id },
         data: {
@@ -97,6 +102,8 @@ export default async function groupsRoutes(server: FastifyInstance) {
           ...(majorName !== undefined ? { majorName } : {}),
         },
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'UPDATE', entityType: 'Group', entityId: id, oldData: sanitize(oldRecord), newData: sanitize(group) });
       return reply.send({ data: group });
     } catch (err) {
       return reply.code(400).send({ error: 'Validation/Constraints Error or Not Found' });
@@ -113,7 +120,10 @@ export default async function groupsRoutes(server: FastifyInstance) {
         if (!target) return reply.code(404).send({ error: 'Nie znaleziono grupy.' });
       }
 
+      const oldRecord = await prisma.group.findUnique({ where: { id } });
       await prisma.group.delete({ where: { id } });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'DELETE', entityType: 'Group', entityId: id, oldData: sanitize(oldRecord) });
       return reply.send({ success: true });
     } catch {
       return reply.code(400).send({ error: 'Cannot delete group - it might be used in schedule entries' });

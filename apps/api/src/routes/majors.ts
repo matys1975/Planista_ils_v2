@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { extractFullScope, buildInstituteWhere, requireRole } from '../lib/rbac';
 import { parseIdParam } from '../lib/params';
+import { audit, extractAuditContext, sanitize } from '../services/auditService';
 
 export default async function (server: FastifyInstance) {
   server.get('/api/v1/majors', { preValidation: [server.authenticate] }, async (request, reply) => {
@@ -52,6 +53,8 @@ export default async function (server: FastifyInstance) {
           ...(instituteId ? { instituteId } : {}),
         }
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'CREATE', entityType: 'Major', entityId: major.id, newData: sanitize(major) });
       return reply.code(201).send({ data: major });
     } catch (err) {
       return reply.code(400).send({ error: 'Validation Error', details: err instanceof z.ZodError ? err.errors : undefined });
@@ -67,6 +70,9 @@ export default async function (server: FastifyInstance) {
       const target = await prisma.major.findFirst({ where: { id, ...whereClause } });
       if (!target) return reply.code(404).send({ error: 'Nie znaleziono kierunku lub brak dostępu.' });
       const instituteId = scope.instituteId;
+      
+      const oldRecord = await prisma.major.findUnique({ where: { id }, select: { id: true, code: true, name: true, degree: true, years: true, instituteId: true } });
+
       const major = await prisma.major.update({
         where: { id },
         data: {
@@ -74,6 +80,8 @@ export default async function (server: FastifyInstance) {
           ...(instituteId ? { instituteId } : {}),
         }
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'UPDATE', entityType: 'Major', entityId: id, oldData: sanitize(oldRecord), newData: sanitize(major) });
       return reply.send({ data: major });
     } catch (err) {
       return reply.code(400).send({ error: 'Validation Error', details: err instanceof z.ZodError ? err.errors : undefined });
@@ -88,7 +96,10 @@ export default async function (server: FastifyInstance) {
       const target = await prisma.major.findFirst({ where: { id, ...whereClause } });
       if (!target) return reply.code(404).send({ error: 'Nie znaleziono kierunku lub brak dostępu.' });
 
+      const oldRecord = await prisma.major.findUnique({ where: { id } });
       await prisma.major.delete({ where: { id } });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'DELETE', entityType: 'Major', entityId: id, oldData: sanitize(oldRecord) });
       return reply.send({ success: true });
     } catch (err) {
       return reply.code(400).send({ error: 'Could not delete major.', details: err instanceof Error ? err.message : undefined });

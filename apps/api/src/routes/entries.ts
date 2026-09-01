@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { audit, extractAuditContext, sanitize } from '../services/auditService';
 import { prisma } from '../lib/prisma';
 import { requireRole, extractFullScope, buildInstituteWhere, buildTeacherInstituteWhere, buildTeacherWhere, type ScopeFilter } from '../lib/rbac';
 import { parseIdParam } from '../lib/params';
@@ -123,7 +124,8 @@ export default async function entriesRoutes(server: FastifyInstance) {
       const access = await ensureEntryResourcesInScope(payload, scope, reply);
       if (!access) return;
 
-      const formattedEntry = await createEntry(payload, access.course?.instituteId);
+      const ctx = extractAuditContext(request);
+      const formattedEntry = await createEntry(payload, access.course?.instituteId, ctx);
       return reply.code(201).send({ data: formattedEntry });
 
     } catch (err) {
@@ -153,7 +155,8 @@ export default async function entriesRoutes(server: FastifyInstance) {
       const access = await ensureEntryResourcesInScope(payload, scope, reply);
       if (!access) return;
 
-      const formattedEntry = await updateEntry(id, payload);
+      const ctx = extractAuditContext(request);
+      const formattedEntry = await updateEntry(id, payload, ctx);
       return reply.send({ data: formattedEntry });
 
     } catch (err) {
@@ -179,7 +182,10 @@ export default async function entriesRoutes(server: FastifyInstance) {
       });
       if (!currentEntry) return reply.code(404).send({ error: 'Nie znaleziono wpisu planu lub brak dostępu.' });
 
+      const oldRecord = await prisma.scheduleEntry.findUnique({ where: { id } });
       await prisma.scheduleEntry.delete({ where: { id } });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'DELETE', entityType: 'ScheduleEntry', entityId: id, oldData: sanitize(oldRecord) });
       return reply.send({ success: true });
     } catch {
       return reply.code(400).send({ error: 'Nie udało się skasować wpisu planu.' });

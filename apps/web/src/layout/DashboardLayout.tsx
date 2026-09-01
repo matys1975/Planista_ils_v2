@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ClipboardList,
+  Clock,
   GraduationCap,
   Grid3X3,
   LayoutDashboard,
@@ -262,6 +263,13 @@ export function DashboardLayout() {
                 <Link to="/admin/users" className={linkCls(isCollapsed)}>
                   <Shield className="h-5 w-5 flex-shrink-0" />
                   {!isCollapsed && <span>Użytkownicy</span>}
+                </Link>
+              </NavTooltip>
+
+              <NavTooltip label="Historia aktywności" isCollapsed={isCollapsed}>
+                <Link to="/admin/audit" className={linkCls(isCollapsed)}>
+                  <Clock className="h-5 w-5 flex-shrink-0" />
+                  {!isCollapsed && <span>Historia aktywności</span>}
                 </Link>
               </NavTooltip>
             </div>

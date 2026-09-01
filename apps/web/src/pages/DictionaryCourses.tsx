@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useState, useMemo, useEffect } from 'react';
-import { BookOpen, Plus, Printer, AlertCircle, CheckCircle2, Clock, ArrowUpCircle, Download } from 'lucide-react';
+import { BookOpen, Plus, Printer, AlertCircle, CheckCircle2, Clock, ArrowUpCircle, Download, Layers2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Course, Semester } from '../types/models';
 import { exportToCsv } from '../utils/exportToCsv';
@@ -39,6 +39,7 @@ export function DictionaryCourses() {
   const [activeYearTab, setActiveYearTab] = useState('all');
   const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'unassigned' | 'partial' | 'full' | 'over'>('all');
   const [selectedInstituteId, setSelectedInstituteId] = useState('all');
+  const [isCommonCoursesCollapsed, setIsCommonCoursesCollapsed] = useState(true);
   const [formError, setFormError] = useState('');
 
   const queryClient = useQueryClient();
@@ -220,6 +221,25 @@ export function DictionaryCourses() {
     }
     return (majorsData?.data || []).filter((major: any) => major.instituteId === selectedInstituteId);
   }, [majorsData, selectedInstituteId]);
+
+  const commonCourseGroups = useMemo(() => {
+    const groups = new Map<string, { majorCodes: string[]; courses: any[] }>();
+
+    filteredCourses.forEach((course: any) => {
+      const majorCodes = Array.from(new Set(
+        (course.majors || []).map((item: any) => item.major?.code).filter(Boolean)
+      )).sort() as string[];
+
+      if (majorCodes.length < 2) return;
+
+      const key = majorCodes.join(' + ');
+      const group = groups.get(key) || { majorCodes, courses: [] };
+      group.courses.push(course);
+      groups.set(key, group);
+    });
+
+    return Array.from(groups.values()).sort((a, b) => a.majorCodes.join().localeCompare(b.majorCodes.join()));
+  }, [filteredCourses]);
 
   useEffect(() => {
     if (activeMajorTab === 'all') return;
@@ -426,6 +446,60 @@ export function DictionaryCourses() {
           allCount={coursesData?.data?.length || 0}
           className="print:hidden"
         />
+      )}
+
+      {commonCourseGroups.length > 0 && (
+        <section className="bg-card rounded-xl border shadow-sm print:hidden overflow-hidden transition-all">
+          <div
+            className="flex items-center justify-between px-4 py-3 bg-muted/10 cursor-pointer select-none hover:bg-muted/20 transition-colors"
+            onClick={() => setIsCommonCoursesCollapsed(!isCommonCoursesCollapsed)}
+          >
+            <div className="flex items-center gap-2">
+              <Layers2 className="h-4 w-4 text-primary" />
+              <h2 className="text-sm font-black">Przedmioty wspólne według kierunków</h2>
+              <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-medium">
+                {commonCourseGroups.reduce((count, group) => count + group.courses.length, 0)} przedmiotów
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-muted-foreground hidden sm:inline">
+                {isCommonCoursesCollapsed ? 'Rozwiń' : 'Zwiń'}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                aria-label={isCommonCoursesCollapsed ? 'Rozwiń tabelę przedmiotów wspólnych' : 'Zminimalizuj tabelę przedmiotów wspólnych'}
+              >
+                {isCommonCoursesCollapsed ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronUp className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+          {!isCommonCoursesCollapsed && (
+            <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3 border-t">
+              {commonCourseGroups.map((group) => (
+                <div key={group.majorCodes.join('|')} className="rounded-lg border border-primary/15 bg-primary/[0.03] p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="text-xs font-black text-primary">{group.majorCodes.join(' + ')}</span>
+                    <span className="text-[10px] text-muted-foreground">{group.courses.length}</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {group.courses.map((course: any) => (
+                      <div key={course.id} className="flex items-start gap-2 text-xs">
+                        <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{course.code}</span>
+                        <span className="font-semibold">{course.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       )}
 
       {/* Table with major/year filter tabs */}

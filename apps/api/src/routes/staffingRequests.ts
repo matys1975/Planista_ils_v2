@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { requireRole, extractFullScope } from '../lib/rbac';
 import { parseIdParam } from '../lib/params';
 import z from 'zod';
+import { audit, extractAuditContext, sanitize } from '../services/auditService';
 
 const createStaffingRequestSchema = z.object({
   courseId: z.string().uuid(),
@@ -87,7 +88,8 @@ export default async function staffingRequestsRoutes(server: FastifyInstance) {
           status: 'PENDING',
         }
       });
-
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'CREATE', entityType: 'StaffingRequest', entityId: newRequest.id, newData: sanitize(newRequest) });
       return reply.code(201).send({ data: newRequest });
     } catch (err) {
       return reply.code(400).send({ error: 'Validation Error' });
@@ -107,6 +109,8 @@ export default async function staffingRequestsRoutes(server: FastifyInstance) {
       });
       if (!existing) return reply.code(404).send({ error: 'Nie znaleziono zgłoszenia lub brak dostępu.' });
 
+      const oldRecord = await prisma.staffingRequest.findUnique({ where: { id }, select: { id: true, requestedGroups: true, notes: true, status: true, adminNotes: true, instituteId: true, courseId: true, semesterId: true } });
+
       const req = await prisma.staffingRequest.update({
         where: { id },
         data: { 
@@ -114,6 +118,8 @@ export default async function staffingRequestsRoutes(server: FastifyInstance) {
           ...(payload.adminNotes !== undefined && { adminNotes: payload.adminNotes })
         }
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'UPDATE', entityType: 'StaffingRequest', entityId: id, oldData: sanitize(oldRecord), newData: sanitize(req) });
       return { data: req };
     } catch (err) {
       return reply.code(400).send({ error: 'Validation Error' });
@@ -135,7 +141,10 @@ export default async function staffingRequestsRoutes(server: FastifyInstance) {
         return reply.code(403).send({ error: 'Brak uprawnień do usunięcia tego zgłoszenia.' });
       }
 
+      const oldRecord = await prisma.staffingRequest.findUnique({ where: { id } });
       await prisma.staffingRequest.delete({ where: { id } });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'DELETE', entityType: 'StaffingRequest', entityId: id, oldData: sanitize(oldRecord) });
       return reply.send({ success: true });
     } catch {
       return reply.code(400).send({ error: 'Cannot delete request' });

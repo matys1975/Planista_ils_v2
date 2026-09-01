@@ -160,6 +160,12 @@ const superadminRoute = createRoute({
   component: FacultyDashboardLazy,
 });
 
+const auditLogRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: '/admin/audit',
+  component: lazyRouteComponent(() => import('./pages/AuditLog'), 'AuditLog'),
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   dashboardRoute.addChildren([
@@ -178,6 +184,7 @@ const routeTree = rootRoute.addChildren([
     facultyDashboardRoute,
     deanDashboardRoute,
     superadminRoute,
+    auditLogRoute,
   ]),
 ]);
 

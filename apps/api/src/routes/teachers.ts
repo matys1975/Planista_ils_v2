@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma';
 import { requireRole, extractFullScope, buildTeacherWhere } from '../lib/rbac';
 import { parseIdParam } from '../lib/params';
 import z from 'zod';
+import { audit, extractAuditContext, sanitize } from '../services/auditService';
 
 const createTeacherSchema = z.object({
   firstName: z.string().min(1),
@@ -103,6 +104,8 @@ export default async function teachersRoutes(server: FastifyInstance) {
           instituteId: targetInst.id,
         },
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'CREATE', entityType: 'Teacher', entityId: teacher.id, newData: sanitize(teacher) });
       return reply.code(201).send({ data: teacher });
     } catch (err) {
       return reply.code(400).send({ error: 'Validation/Constraints Error' });
@@ -198,6 +201,8 @@ export default async function teachersRoutes(server: FastifyInstance) {
 
       const { version, ...updateData } = payload;
 
+      const oldRecord = await prisma.teacher.findUnique({ where: { id }, select: { id: true, firstName: true, lastName: true, email: true, unit: true, pensumLimit: true, instituteId: true } });
+
       const teacher = await prisma.teacher.update({
         where: version !== undefined ? { id, version } : { id },
         data: {
@@ -206,6 +211,8 @@ export default async function teachersRoutes(server: FastifyInstance) {
           version: { increment: 1 }
         },
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'UPDATE', entityType: 'Teacher', entityId: id, oldData: sanitize(oldRecord), newData: sanitize(teacher) });
       return reply.send({ data: teacher });
     } catch (err) {
       if (err instanceof Object && 'code' in err && err.code === 'P2025') {
@@ -231,7 +238,10 @@ export default async function teachersRoutes(server: FastifyInstance) {
         }
       }
 
+      const oldRecord = await prisma.teacher.findUnique({ where: { id } });
       await prisma.teacher.delete({ where: { id } });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'DELETE', entityType: 'Teacher', entityId: id, oldData: sanitize(oldRecord) });
       return reply.send({ success: true });
     } catch {
       return reply.code(400).send({ error: 'Cannot delete teacher' });

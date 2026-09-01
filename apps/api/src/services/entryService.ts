@@ -2,6 +2,7 @@
 
 import { prisma } from '../lib/prisma';
 import z from 'zod';
+import { audit, sanitize, type AuditContext } from './auditService';
 
 export const entrySchema = z.object({
   semesterId: z.string().uuid(),
@@ -91,7 +92,7 @@ export async function checkCollisions(payload: Partial<EntryPayload> & { semeste
   return conflicts;
 }
 
-export async function createEntry(payload: EntryPayload, instituteId?: string | null) {
+export async function createEntry(payload: EntryPayload, instituteId?: string | null, ctx?: AuditContext) {
   const conflicts = await checkCollisions({
     semesterId: payload.semesterId,
     dayOfWeek: payload.dayOfWeek,
@@ -133,6 +134,10 @@ export async function createEntry(payload: EntryPayload, instituteId?: string | 
     }
   });
   
+  if (ctx) {
+    await audit(ctx, { action: 'CREATE', entityType: 'ScheduleEntry', entityId: entry.id, newData: sanitize(entry) });
+  }
+
   return {
     ...entry,
     groups: entry.groups.map(g => g.group)
@@ -140,7 +145,7 @@ export async function createEntry(payload: EntryPayload, instituteId?: string | 
 }
 
 
-export async function updateEntry(id: string, payload: Partial<EntryPayload>) {
+export async function updateEntry(id: string, payload: Partial<EntryPayload>, ctx?: AuditContext) {
   const currentEntry = await prisma.scheduleEntry.findUnique({ where: { id }, include: { groups: true } });
   if (!currentEntry) throw new Error('Not Found');
 
@@ -190,7 +195,7 @@ export async function updateEntry(id: string, payload: Partial<EntryPayload>) {
       };
     }
 
-    return tx.scheduleEntry.update({
+    const result = await tx.scheduleEntry.update({
       where: { id },
       data: updateData,
       include: {
@@ -200,6 +205,12 @@ export async function updateEntry(id: string, payload: Partial<EntryPayload>) {
         groups: { include: { group: true } }
       }
     });
+
+    if (ctx) {
+      await audit(ctx, { action: 'UPDATE', entityType: 'ScheduleEntry', entityId: id, oldData: sanitize(currentEntry), newData: sanitize(result) }, tx);
+    }
+
+    return result;
   });
 
   return { ...updated, groups: updated.groups.map(g => g.group) };

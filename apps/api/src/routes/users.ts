@@ -6,6 +6,7 @@ import z from 'zod';
 import bcrypt from 'bcrypt';
 import { SALT_ROUNDS } from '../config/constants';
 import type { Prisma } from '@plan/database';
+import { audit, extractAuditContext, sanitize } from '../services/auditService';
 
 const passwordValidationMessage = 'Haslo musi miec min. 10 znakow oraz zawierac mala litere, wielka litere, cyfre i znak specjalny.';
 
@@ -133,6 +134,11 @@ export default async function usersRoutes(server: FastifyInstance) {
           createdAt: true,
         }
       });
+
+      // Audyt: USER_CREATE
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'CREATE', entityType: 'User', entityId: user.id, newData: sanitize(user) });
+
       return reply.code(201).send({ data: user });
     } catch (err) {
       if (err instanceof Object && 'code' in err && err.code === 'P2002') {
@@ -191,11 +197,29 @@ export default async function usersRoutes(server: FastifyInstance) {
         updateData.institute = { connect: { id: payload.instituteId } };
       }
 
+      // Audyt: pobierz stan przed zmianą
+      const oldUser = await prisma.user.findUnique({
+        where: { id },
+        select: { id: true, email: true, name: true, role: true, instituteId: true },
+      });
+
       const user = await prisma.user.update({
         where: { id },
         data: updateData,
         select: { id: true, email: true, name: true, role: true, instituteId: true }
       });
+
+      // Audyt: USER_UPDATE
+      const ctx = extractAuditContext(request);
+      await audit(ctx, {
+        action: 'UPDATE',
+        entityType: 'User',
+        entityId: id,
+        oldData: sanitize(oldUser),
+        newData: sanitize(user),
+        ...(payload.newPassword ? { metadata: { passwordChanged: true } } : {}),
+      });
+
       return reply.send({ data: user });
     } catch (err) {
       if (err instanceof Object && 'code' in err && err.code === 'P2002') {
@@ -231,7 +255,18 @@ export default async function usersRoutes(server: FastifyInstance) {
     }
 
     try {
+      // Audyt: pobierz dane przed usunięciem
+      const oldUser = await prisma.user.findUnique({
+        where: { id },
+        select: { id: true, email: true, name: true, role: true, instituteId: true },
+      });
+
       await prisma.user.delete({ where: { id } });
+
+      // Audyt: USER_DELETE
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'DELETE', entityType: 'User', entityId: id, oldData: sanitize(oldUser) });
+
       return reply.send({ success: true });
     } catch {
       return reply.code(400).send({ error: 'Nie udało się usunąć użytkownika.' });
@@ -280,6 +315,18 @@ export default async function usersRoutes(server: FastifyInstance) {
         data: updateData,
         select: { id: true, email: true, name: true, role: true, instituteId: true, facultyId: true, mustChangePassword: true }
       });
+
+      // Audyt: PROFILE_UPDATE lub PASSWORD_CHANGE
+      const ctx = extractAuditContext(request);
+      const action = payload.newPassword ? 'PASSWORD_CHANGE' : 'UPDATE';
+      await audit(ctx, {
+        action,
+        entityType: 'User',
+        entityId: currentUser.id,
+        newData: sanitize(updated),
+        metadata: payload.newPassword ? { passwordChanged: true } : undefined,
+      });
+
       return reply.send({ data: updated });
     } catch (err) {
       if (err instanceof Object && 'code' in err && err.code === 'P2002') {

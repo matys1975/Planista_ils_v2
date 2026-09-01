@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { audit, extractAuditContext, sanitize } from '../services/auditService';
 import { prisma } from '../lib/prisma';
 import { requireRole, extractFullScope, buildInstituteWhere } from '../lib/rbac';
 import { parseIdParam } from '../lib/params';
@@ -86,6 +87,8 @@ export default async function roomsRoutes(server: FastifyInstance) {
           ...(resolvedInstituteId ? { instituteId: resolvedInstituteId } : {}),
         },
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'CREATE', entityType: 'Room', entityId: room.id, newData: sanitize(room) });
       return reply.code(201).send({ data: room });
     } catch (err) {
       return reply.code(400).send({ error: 'Validation/Constraints Error' });
@@ -109,6 +112,7 @@ export default async function roomsRoutes(server: FastifyInstance) {
       const { instituteId: bodyInstId, ...roomData } = payload;
       const resolvedInstituteId = await resolveWritableInstituteId(scope, bodyInstId, reply);
       if (resolvedInstituteId === null) return;
+      const oldRecord = await prisma.room.findUnique({ where: { id }, select: { id: true, building: true, number: true, capacity: true, type: true, instituteId: true } });
       const room = await prisma.room.update({
         where: { id },
         data: {
@@ -116,6 +120,8 @@ export default async function roomsRoutes(server: FastifyInstance) {
           ...(resolvedInstituteId ? { instituteId: resolvedInstituteId } : {}),
         },
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'UPDATE', entityType: 'Room', entityId: id, oldData: sanitize(oldRecord), newData: sanitize(room) });
       return reply.send({ data: room });
     } catch (err) {
       return reply.code(400).send({ error: 'Validation/Constraints Error or Not Found' });
@@ -162,6 +168,7 @@ export default async function roomsRoutes(server: FastifyInstance) {
         });
       }
 
+      const oldRecord = await prisma.room.findUnique({ where: { id } });
       // Force delete: remove related entries first, then the room — all in a transaction
       await prisma.$transaction(async (tx) => {
         if (relatedEntries.length > 0) {
@@ -175,6 +182,8 @@ export default async function roomsRoutes(server: FastifyInstance) {
           });
         }
         await tx.room.delete({ where: { id } });
+        const ctx = extractAuditContext(request);
+        await audit(ctx, { action: 'DELETE', entityType: 'Room', entityId: id, oldData: sanitize(oldRecord) }, tx);
       });
 
       return reply.send({

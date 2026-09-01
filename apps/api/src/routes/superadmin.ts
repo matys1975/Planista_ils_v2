@@ -1,3 +1,4 @@
+import { audit, extractAuditContext, sanitize } from '../services/auditService';
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
 import { requireRole } from '../lib/rbac';
@@ -105,6 +106,8 @@ export default async function superadminRoutes(server: FastifyInstance) {
     try {
       const payload = instituteSchema.parse(request.body);
       const institute = await prisma.institute.create({ data: payload });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'CREATE', entityType: 'Institute', entityId: institute.id, newData: sanitize(institute) });
       return reply.code(201).send({ data: institute });
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -119,7 +122,10 @@ export default async function superadminRoutes(server: FastifyInstance) {
     const { id } = request.params as { id: string };
     try {
       const payload = instituteSchema.parse(request.body);
+      const oldRecord = await prisma.institute.findUnique({ where: { id } });
       const institute = await prisma.institute.update({ where: { id }, data: payload });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'UPDATE', entityType: 'Institute', entityId: id, oldData: sanitize(oldRecord), newData: sanitize(institute) });
       return reply.send({ data: institute });
     } catch {
       return reply.code(400).send({ error: 'Nie udało się zaktualizować jednostki.' });
@@ -130,7 +136,10 @@ export default async function superadminRoutes(server: FastifyInstance) {
   server.delete('/api/v1/superadmin/institutes/:id', { preValidation }, async (request, reply) => {
     const { id } = request.params as { id: string };
     try {
+      const oldRecord = await prisma.institute.findUnique({ where: { id } });
       await prisma.institute.delete({ where: { id } });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'DELETE', entityType: 'Institute', entityId: id, oldData: sanitize(oldRecord) });
       return reply.send({ success: true });
     } catch {
       return reply.code(400).send({ error: 'Nie można usunąć jednostki — prawdopodobnie posiada powiązane dane.' });
@@ -596,6 +605,9 @@ export default async function superadminRoutes(server: FastifyInstance) {
         data: { passwordHash, mustChangePassword: true },
       });
 
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'PASSWORD_RESET', entityType: 'User', entityId: id });
+
       return reply.send({ success: true, message: 'Hasło zostało zresetowane.' });
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -718,10 +730,13 @@ export default async function superadminRoutes(server: FastifyInstance) {
       let user = await prisma.user.findUnique({ where: { email: teacher.email } });
       if (user) {
         // Update existing user — set as ADMIN for this institute
+        const oldRole = user.role;
         user = await prisma.user.update({
           where: { id: user.id },
           data: { role: 'ADMIN', instituteId },
         });
+        const ctx = extractAuditContext(request);
+        await audit(ctx, { action: 'ROLE_CHANGE', entityType: 'User', entityId: user.id, oldData: { role: oldRole }, newData: { role: 'ADMIN' } });
         return reply.send({ data: user, message: `Użytkownik "${user.name}" promowany na admina jednostki "${institute.name}".` });
       } else {
         // Create new user from teacher data
@@ -737,6 +752,9 @@ export default async function superadminRoutes(server: FastifyInstance) {
             mustChangePassword: true,
           },
         });
+        const ctx = extractAuditContext(request);
+        await audit(ctx, { action: 'CREATE', entityType: 'User', entityId: user.id, newData: sanitize(user) });
+        await audit(ctx, { action: 'ROLE_CHANGE', entityType: 'User', entityId: user.id, oldData: { role: null }, newData: { role: 'ADMIN' } });
         return reply.code(201).send({
           data: user,
           temporaryPassword,
@@ -748,10 +766,13 @@ export default async function superadminRoutes(server: FastifyInstance) {
       const existing = await prisma.user.findUnique({ where: { email: body.email } });
       if (existing) {
         // Update role and institute
+        const oldRole = existing.role;
         const updated = await prisma.user.update({
           where: { id: existing.id },
           data: { role: 'ADMIN', instituteId },
         });
+        const ctx = extractAuditContext(request);
+        await audit(ctx, { action: 'ROLE_CHANGE', entityType: 'User', entityId: existing.id, oldData: { role: oldRole }, newData: { role: 'ADMIN' } });
         return reply.send({ data: updated, message: `Istniejący użytkownik "${updated.name}" przypisany jako admin.` });
       }
 
@@ -766,6 +787,9 @@ export default async function superadminRoutes(server: FastifyInstance) {
           mustChangePassword: true,
         },
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'CREATE', entityType: 'User', entityId: user.id, newData: sanitize(user) });
+      await audit(ctx, { action: 'ROLE_CHANGE', entityType: 'User', entityId: user.id, oldData: { role: null }, newData: { role: 'ADMIN' } });
       return reply.code(201).send({ data: user, message: `Utworzono admina "${user.name}".` });
     } else {
       return reply.code(400).send({ error: 'Podaj teacherId lub name+email+password.' });
@@ -787,6 +811,9 @@ export default async function superadminRoutes(server: FastifyInstance) {
       where: { id: userId },
       data: { role: 'VIEWER' },
     });
+
+    const ctx = extractAuditContext(request);
+    await audit(ctx, { action: 'ROLE_CHANGE', entityType: 'User', entityId: userId, oldData: { role: user.role }, newData: { role: 'VIEWER' } });
 
     return reply.send({ success: true, message: `Użytkownik "${user.name}" nie jest już adminem.` });
   });

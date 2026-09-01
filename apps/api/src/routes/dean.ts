@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { audit, extractAuditContext, sanitize } from '../services/auditService';
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
 import { requireRole, extractFacultyScope, extractFullScope } from '../lib/rbac';
@@ -759,6 +760,10 @@ export default async function deanRoutes(server: FastifyInstance) {
                 },
                 select: { id: true, email: true, name: true, role: true, instituteId: true, createdAt: true },
             });
+
+            const ctx = extractAuditContext(request);
+            await audit(ctx, { action: 'CREATE', entityType: 'User', entityId: user.id, newData: sanitize(user) });
+
             return reply.code(201).send({ data: user });
         } catch (err) {
             if (err instanceof z.ZodError) {
@@ -817,11 +822,17 @@ export default async function deanRoutes(server: FastifyInstance) {
                 updateData.mustChangePassword = true;
             }
 
+            const oldRecord = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, name: true, role: true, instituteId: true, facultyId: true } });
+
             const user = await prisma.user.update({
                 where: { id },
                 data: updateData,
                 select: { id: true, email: true, name: true, role: true, instituteId: true },
             });
+
+            const ctx = extractAuditContext(request);
+            await audit(ctx, { action: 'UPDATE', entityType: 'User', entityId: id, oldData: sanitize(oldRecord), newData: sanitize(user) });
+
             return reply.send({ data: user });
         } catch (err) {
             if (err instanceof z.ZodError) {
@@ -864,7 +875,12 @@ export default async function deanRoutes(server: FastifyInstance) {
             }
         }
 
+        const oldRecord = await prisma.user.findUnique({ where: { id } });
         await prisma.user.delete({ where: { id } });
+
+        const ctx = extractAuditContext(request);
+        await audit(ctx, { action: 'DELETE', entityType: 'User', entityId: id, oldData: sanitize(oldRecord) });
+
         return reply.send({ success: true });
     });
 
@@ -906,6 +922,9 @@ export default async function deanRoutes(server: FastifyInstance) {
                 where: { id },
                 data: { passwordHash, mustChangePassword: true },
             });
+
+            const ctx = extractAuditContext(request);
+            await audit(ctx, { action: 'PASSWORD_RESET', entityType: 'User', entityId: id });
 
             return reply.send({ success: true, message: 'Hasło zostało zresetowane.' });
         } catch (err) {

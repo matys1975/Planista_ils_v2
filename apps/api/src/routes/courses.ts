@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { audit, extractAuditContext, sanitize } from '../services/auditService';
 import { prisma } from '../lib/prisma';
 import { requireRole, extractFullScope, buildInstituteWhere } from '../lib/rbac';
 import { parseIdParam, parseParam } from '../lib/params';
@@ -136,6 +137,8 @@ export default async function coursesRoutes(server: FastifyInstance) {
         },
         include: { majors: { include: { major: true } } }
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'CREATE', entityType: 'Course', entityId: course.id, newData: sanitize(course) });
       return reply.code(201).send({ data: course });
     } catch (err) {
       if (err instanceof Object && 'code' in err && err.code === 'P2002') {
@@ -207,6 +210,7 @@ export default async function coursesRoutes(server: FastifyInstance) {
       }
 
       const { majors, ...payload } = updateCourseSchema.parse(request.body);
+      const oldRecord = await prisma.course.findUnique({ where: { id }, select: { id: true, code: true, name: true, type: true, ectsCredits: true, semesterId: true } });
       const course = await prisma.course.update({
         where: { id },
         data: {
@@ -223,6 +227,8 @@ export default async function coursesRoutes(server: FastifyInstance) {
         },
         include: { majors: { include: { major: true } } }
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'UPDATE', entityType: 'Course', entityId: id, oldData: sanitize(oldRecord), newData: sanitize(course) });
       return reply.send({ data: course });
     } catch (err) {
       if (err instanceof Object && 'code' in err && err.code === 'P2002') {
@@ -265,6 +271,8 @@ export default async function coursesRoutes(server: FastifyInstance) {
         },
         include: { teacher: true, groups: { include: { group: { include: { major: true } } } } }
       });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'CREATE', entityType: 'CourseAllocation', entityId: allocation.id, newData: sanitize(allocation) });
       return reply.code(201).send({ data: allocation });
     } catch (err) {
       return reply.code(400).send({ error: 'Validation Error', details: err instanceof Error ? err.message : undefined });
@@ -280,7 +288,10 @@ export default async function coursesRoutes(server: FastifyInstance) {
 
       // CourseAllocationGroup ma onDelete: Cascade w schemacie Prisma,
       // więc grupy zostaną usunięte automatycznie razem z alokacją.
+      const oldRecord = await prisma.courseAllocation.findUnique({ where: { id: allocId } });
       await prisma.courseAllocation.delete({ where: { id: allocId } });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'DELETE', entityType: 'CourseAllocation', entityId: allocId, oldData: sanitize(oldRecord) });
       return reply.send({ success: true });
     } catch (err: any) {
       server.log.error(err, 'Delete allocation error');
@@ -307,6 +318,7 @@ export default async function coursesRoutes(server: FastifyInstance) {
       if (!allocation) return reply.code(404).send({ error: 'Nie znaleziono przydziału lub brak dostępu.' });
       if (!(await ensureAllocationResourcesInScope(payload, scope, reply))) return;
 
+      const oldRecord = await prisma.courseAllocation.findUnique({ where: { id: allocId }, include: { groups: true } });
       // Atomowa aktualizacja w transakcji — chroni przed niespójnymi danymi
       const updated = await prisma.$transaction(async (tx) => {
         const updateData: Prisma.CourseAllocationUpdateInput = {};
@@ -329,10 +341,13 @@ export default async function coursesRoutes(server: FastifyInstance) {
           }
         }
 
-        return tx.courseAllocation.findUnique({
+        const updatedAlloc = await tx.courseAllocation.findUnique({
           where: { id: allocId },
           include: { teacher: true, groups: { include: { group: { include: { major: true } } } } }
         });
+        const ctx = extractAuditContext(request);
+        await audit(ctx, { action: 'UPDATE', entityType: 'CourseAllocation', entityId: allocId, oldData: sanitize(oldRecord), newData: sanitize(updatedAlloc) }, tx);
+        return updatedAlloc;
       });
       return reply.send({ data: updated });
     } catch (err) {
@@ -350,7 +365,10 @@ export default async function coursesRoutes(server: FastifyInstance) {
         if (!target) return reply.code(404).send({ error: 'Nie znaleziono przedmiotu.' });
       }
 
+      const oldRecord = await prisma.course.findUnique({ where: { id } });
       await prisma.course.delete({ where: { id } });
+      const ctx = extractAuditContext(request);
+      await audit(ctx, { action: 'DELETE', entityType: 'Course', entityId: id, oldData: sanitize(oldRecord) });
       return reply.send({ success: true });
     } catch {
       return reply.code(400).send({ error: 'Cannot delete course - it might be used in schedule entries' });
