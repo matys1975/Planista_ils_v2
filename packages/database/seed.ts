@@ -25,6 +25,7 @@ const INSTITUTES = [
   { name: 'Instytut Orientalistyki',                    shortCode: 'IO',   usosCode: '990020600' },
   { name: 'Katedra Metodologii Lingwistyki',            shortCode: 'KML',  usosCode: '990020700' },
   { name: 'Katedra Skandynawistyki',                    shortCode: 'KS',   usosCode: '990020800' },
+  { name: 'Ośrodek Koordynacyjno-Programowy Kształcenia Nauczycieli', shortCode: 'OKPKN', usosCode: '990020900' },
 ];
 
 /**

@@ -17,6 +17,28 @@ const prisma = new PrismaClient();
 const SALT_ROUNDS = 12;
 
 async function main() {
+  // Upewnij się, że jednostka OKPKN istnieje w bazie
+  const okpkn = await prisma.institute.findFirst({
+    where: {
+      OR: [
+        { shortCode: 'OKPKN' },
+        { name: { contains: 'Kształcenia Nauczycieli', mode: 'insensitive' } }
+      ]
+    }
+  });
+
+  if (!okpkn) {
+    console.log('Tworzenie jednostki OKPKN...');
+    await prisma.institute.create({
+      data: {
+        name: 'Ośrodek Koordynacyjno-Programowy Kształcenia Nauczycieli',
+        shortCode: 'OKPKN',
+        usosCode: '990020900',
+      }
+    });
+    console.log('✅ Utworzono jednostkę OKPKN.');
+  }
+
   const userCount = await prisma.user.count();
 
   if (userCount > 0) {

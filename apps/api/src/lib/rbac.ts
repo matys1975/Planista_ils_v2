@@ -140,6 +140,7 @@ export function buildTeacherWhere(scope: ScopeFilter): any {
       OR: [
         { instituteId: scope.instituteId },
         { institute: { shortCode: 'UCP' } },
+        { institute: { shortCode: 'OKPKN' } },
         {
           // Prowadzący z innych jednostek, którzy mają alokacje na kursach tego instytutu
           allocations: {
@@ -172,7 +173,8 @@ export function buildTeacherInstituteWhere(scope: ScopeFilter): any {
     return {
       OR: [
         { teacher: { instituteId: scope.instituteId } },
-        { teacher: { institute: { shortCode: 'UCP' } } }
+        { teacher: { institute: { shortCode: 'UCP' } } },
+        { teacher: { institute: { shortCode: 'OKPKN' } } }
       ]
     };
   }

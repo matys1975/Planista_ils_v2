@@ -31,7 +31,8 @@ export default async function workloadRoutes(server: FastifyInstance) {
     } else if (scope.instituteId) {
       entryWhere.OR = [
         { teacher: { instituteId: scope.instituteId } },
-        { teacher: { institute: { shortCode: 'UCP' } } }
+        { teacher: { institute: { shortCode: 'UCP' } } },
+        { teacher: { institute: { shortCode: 'OKPKN' } } }
       ];
     }
 

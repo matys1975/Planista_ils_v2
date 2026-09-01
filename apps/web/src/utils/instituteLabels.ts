@@ -7,6 +7,8 @@ const FALLBACK_SHORT_CODES: Record<string, string> = {
   'Instytut Filologii Słowiańskiej': 'IFSłow',
   'Instytut Filologii Wschodniosłowiańskich': 'IFW',
   'Pracownik UCP': 'UCP',
+  'Ośrodek Koordynacyjno-Programowy Kształcenia Nauczycieli': 'OKPKN',
+  'OKPKN': 'OKPKN',
   'Pracownik zlecony': 'Zlecenie',
   'Wydział Neofilologii': 'WN',
   'Brak przypisania': '—',

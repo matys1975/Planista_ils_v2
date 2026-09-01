@@ -38,6 +38,7 @@ export default async function teachersRoutes(server: FastifyInstance) {
           OR: [
             { institute: { facultyId: inst.facultyId } },
             { institute: { shortCode: 'UCP' } },
+            { institute: { shortCode: 'OKPKN' } },
             { instituteId: null }
           ]
         };
@@ -51,6 +52,7 @@ export default async function teachersRoutes(server: FastifyInstance) {
     const teachers = await prisma.teacher.findMany({
       where: whereClause,
       include: {
+        institute: { select: { id: true, name: true, shortCode: true } },
         allocations: {
           include: {
             course: { include: { semester: true } },
@@ -79,7 +81,6 @@ export default async function teachersRoutes(server: FastifyInstance) {
 
   server.post('/api/v1/teachers', { preValidation: [server.authenticate, requireRole('ADMIN', 'PLANNER')] }, async (request, reply) => {
     try {
-      const sc = extractFullScope(request);
       const payload = createTeacherSchema.parse(request.body);
 
       // Find the institute by its name (payload.unit)
@@ -88,14 +89,6 @@ export default async function teachersRoutes(server: FastifyInstance) {
       });
       if (!targetInst) {
         return reply.code(400).send({ error: 'Nieprawidłowa jednostka organizacyjna.' });
-      }
-
-      // Security check: regular ADMIN/PLANNER can only write to their own institute or UCP
-      if (!sc.isSuperAdmin && !sc.facultyId) {
-        const ucp = await prisma.institute.findFirst({ where: { shortCode: 'UCP' }, select: { id: true } });
-        if (targetInst.id !== sc.instituteId && targetInst.id !== ucp?.id) {
-          return reply.code(403).send({ error: 'Nie masz uprawnień do przypisywania pracowników do tej jednostki.' });
-        }
       }
 
       const teacher = await prisma.teacher.create({
@@ -124,19 +117,12 @@ export default async function teachersRoutes(server: FastifyInstance) {
       // Also map by shortCode to be friendly to CSV imports (e.g. 'ILS' -> Instytut Lingwistyki Stosowanej)
       const shortCodeMap = new Map(institutes.map(i => [i.shortCode?.toLowerCase().trim() || '', i.id]));
 
-      const ucp = institutes.find(i => i.shortCode === 'UCP');
-
       const dataToInsert = payload.map(t => {
         const unitClean = t.unit.toLowerCase().trim();
         let targetId = instMap.get(unitClean) || shortCodeMap.get(unitClean);
 
-        // Security / validation: regular admin can only assign to their own institute or UCP
-        if (!sc.isSuperAdmin && !sc.facultyId) {
-          if (targetId !== sc.instituteId && targetId !== ucp?.id) {
-            targetId = sc.instituteId ?? undefined; // fallback to own institute if not permitted
-          }
-        } else if (!targetId) {
-          targetId = sc.instituteId ?? undefined; // fallback to user's institute
+        if (!targetId) {
+          targetId = sc.instituteId ?? undefined; // fallback to user's institute if not found
         }
 
         return {
@@ -165,16 +151,20 @@ export default async function teachersRoutes(server: FastifyInstance) {
     const id = parseIdParam(request, reply);
     try {
       const sc = extractFullScope(request);
-      const existingTeacher = await prisma.teacher.findUnique({ where: { id } });
+      const existingTeacher = await prisma.teacher.findUnique({
+        where: { id },
+        include: { institute: { select: { shortCode: true } } }
+      });
       if (!existingTeacher) {
         return reply.code(404).send({ error: 'Nie znaleziono prowadzącego.' });
       }
 
-      // Security check on existing teacher's institute
+      // Security check on existing teacher's institute (allow own institute + shared units like UCP and OKPKN)
       if (!sc.isSuperAdmin && !sc.facultyId) {
-        const ucp = await prisma.institute.findFirst({ where: { shortCode: 'UCP' }, select: { id: true } });
-        if (existingTeacher.instituteId !== sc.instituteId && existingTeacher.instituteId !== ucp?.id) {
-          return reply.code(403).send({ error: 'Nie masz uprawnień do edycji tego pracownika.' });
+        const allowedShared = ['UCP', 'OKPKN'];
+        const isSharedUnit = allowedShared.includes(existingTeacher.institute?.shortCode || '');
+        if (existingTeacher.instituteId !== sc.instituteId && !isSharedUnit) {
+          return reply.code(403).send({ error: 'Nie masz uprawnień do edycji pracownika z innej jednostki.' });
         }
       }
 
@@ -187,14 +177,6 @@ export default async function teachersRoutes(server: FastifyInstance) {
         });
         if (!targetInst) {
           return reply.code(400).send({ error: 'Nieprawidłowa jednostka organizacyjna.' });
-        }
-
-        // Security check on new target institute
-        if (!sc.isSuperAdmin && !sc.facultyId) {
-          const ucp = await prisma.institute.findFirst({ where: { shortCode: 'UCP' }, select: { id: true } });
-          if (targetInst.id !== sc.instituteId && targetInst.id !== ucp?.id) {
-            return reply.code(403).send({ error: 'Nie masz uprawnień do przypisywania pracowników do tej jednostki.' });
-          }
         }
         targetInstituteId = targetInst.id;
       }
@@ -226,15 +208,20 @@ export default async function teachersRoutes(server: FastifyInstance) {
     const id = parseIdParam(request, reply);
     try {
       const sc = extractFullScope(request);
-      const existingTeacher = await prisma.teacher.findUnique({ where: { id } });
+      const existingTeacher = await prisma.teacher.findUnique({
+        where: { id },
+        include: { institute: { select: { shortCode: true } } }
+      });
       if (!existingTeacher) {
         return reply.code(404).send({ error: 'Nie znaleziono prowadzącego.' });
       }
 
+      // Security check: allow deleting own institute teachers + shared units (UCP, OKPKN)
       if (!sc.isSuperAdmin && !sc.facultyId) {
-        const ucp = await prisma.institute.findFirst({ where: { shortCode: 'UCP' }, select: { id: true } });
-        if (existingTeacher.instituteId !== sc.instituteId && existingTeacher.instituteId !== ucp?.id) {
-          return reply.code(403).send({ error: 'Nie masz uprawnień do usunięcia tego pracownika.' });
+        const allowedShared = ['UCP', 'OKPKN'];
+        const isSharedUnit = allowedShared.includes(existingTeacher.institute?.shortCode || '');
+        if (existingTeacher.instituteId !== sc.instituteId && !isSharedUnit) {
+          return reply.code(403).send({ error: 'Nie masz uprawnień do usunięcia pracownika z innej jednostki.' });
         }
       }
 

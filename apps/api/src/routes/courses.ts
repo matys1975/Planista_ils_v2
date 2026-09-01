@@ -64,6 +64,7 @@ async function ensureAllocationResourcesInScope(
           { instituteId: scope.instituteId },
           ...(institute?.facultyId ? [{ institute: { facultyId: institute.facultyId } }] : []),
           { institute: { shortCode: 'UCP' } },
+          { institute: { shortCode: 'OKPKN' } },
           { instituteId: null },
         ];
       } else {
