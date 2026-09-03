@@ -548,17 +548,48 @@ export function DictionaryCourses() {
           </div>
         )}
 
-        {/* Filter Summary for Print */}
-        <div className="hidden print:block mb-6 p-4 border-b">
-          <h2 className="text-xl font-bold">Raport Obsady Przedmiotów</h2>
-          <p className="text-sm text-muted-foreground">
-            Filtr: {activeMajorTab === 'all' ? 'Wszystkie kierunki' : `Kierunek: ${activeMajorTab}`}
-            {activeYearTab !== 'all' && `, Rok: ${activeYearTab}`}
-            {activeStatusFilter !== 'all' && `, Status: ${activeStatusFilter}`}
-          </p>
-          <div className="mt-2 text-xs flex gap-4">
-            <span>Ogółem kursów: {stats.total}</span>
-            <span>Obsadzone: {stats.percent}%</span>
+        {/* Academic Print Header */}
+        <div className="hidden print:block mb-4 p-4 border-b-2 border-primary/40 bg-white">
+          <div className="flex justify-between items-start pb-3 border-b border-border/60">
+            <div>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
+                Uniwersytet im. Adama Mickiewicza w Poznaniu • Wydział Neofilologii
+              </p>
+              <h1 className="text-lg font-bold text-primary mt-0.5">
+                WYKAZ PRZEDMIOTÓW I OBSADY DYDAKTYCZNEJ
+              </h1>
+            </div>
+            <div className="text-right text-[10px] text-muted-foreground font-mono">
+              <p>Data wydruku: {new Date().toLocaleDateString('pl-PL')} {new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}</p>
+              <p className="font-semibold text-foreground mt-0.5">
+                Semestr: {semestersData?.data?.find((s: any) => s.id === activeSemesterId)?.name || 'Semestr aktywny'} ({semestersData?.data?.find((s: any) => s.id === activeSemesterId)?.year || ''} - semestr {semestersData?.data?.find((s: any) => s.id === activeSemesterId)?.type || ''})
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-3 pt-2.5 text-[11px]">
+            <div>
+              <span className="text-[9px] uppercase font-bold text-muted-foreground block">Kierunek studiów</span>
+              <span className="font-bold text-foreground">
+                {selectedMajorObj?.name ? `${selectedMajorObj.code} — ${selectedMajorObj.name}` : (activeMajorTab === 'all' ? 'Wszystkie kierunki' : activeMajorTab)}
+              </span>
+            </div>
+            <div>
+              <span className="text-[9px] uppercase font-bold text-muted-foreground block">Rok studiów</span>
+              <span className="font-bold text-foreground">
+                {activeYearTab === 'all' ? 'Wszystkie lata studiów' : `${activeYearTab} rok (Semestry ${parseInt(activeYearTab, 10) * 2 - 1}-${parseInt(activeYearTab, 10) * 2})`}
+              </span>
+            </div>
+            <div>
+              <span className="text-[9px] uppercase font-bold text-muted-foreground block">Liczba przedmiotów</span>
+              <span className="font-bold text-foreground">{stats.total} (obsadzone: {stats.percent}%)</span>
+            </div>
+            <div>
+              <span className="text-[9px] uppercase font-bold text-muted-foreground block">Podsumowanie obsady</span>
+              <span className="font-medium text-muted-foreground">
+                Pełne: <b className="text-foreground">{stats.full}</b> | Częściowe: <b className="text-foreground">{stats.partial}</b> | Brak: <b className="text-foreground">{stats.unassigned}</b>
+              </span>
+            </div>
           </div>
         </div>
 

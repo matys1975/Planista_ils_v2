@@ -118,43 +118,81 @@
 }
 
 @layer base {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
   @media print {
-    body {
+    *,
+    *::before,
+    *::after {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+
+    html, body {
       overflow: visible !important;
       height: auto !important;
-      background: #fff !important;
+      background: #ffffff !important;
+      font-size: 11px !important;
+      line-height: 1.4 !important;
     }
 
     #root,
-    .flex.h-screen {
+    .flex.h-screen,
+    main {
       width: 100% !important;
       height: auto !important;
       overflow: visible !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
     }
 
-    /* Hide sidebar and interactive elements in print */
+    /* Hide sidebar and navigation */
     aside,
+    nav,
+    header,
     button[title^="Rozwiń"],
     button[title^="Zwiń"] {
       display: none !important;
     }
 
-    /* Print-safe table styles */
+    /* Table layout and page break optimizations */
     table {
-      border-collapse: collapse;
+      width: 100% !important;
+      border-collapse: collapse !important;
+      break-inside: auto !important;
     }
+
+    thead {
+      display: table-header-group !important;
+    }
+
+    tr {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
+    }
+
     table th {
-      background: #f5f5f5 !important;
-      border-bottom: 2px solid #ccc !important;
+      background: #f1f5f9 !important;
+      border-bottom: 2px solid #cbd5e1 !important;
+      font-weight: 700 !important;
+      font-size: 10px !important;
+      padding: 6px 8px !important;
     }
+
     table td {
-      border-bottom: 1px solid #ddd !important;
+      border-bottom: 1px solid #e2e8f0 !important;
+      padding: 6px 8px !important;
+      font-size: 10.5px !important;
     }
-    table tr:nth-child(even) {
-      background: #fff !important;
-    }
-    table tr:nth-child(odd) {
-      background: #fafafa !important;
+
+    /* Keep badges crisp */
+    .badge, [class*="rounded"] {
+      print-color-adjust: exact !important;
     }
   }
 }

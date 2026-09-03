@@ -204,10 +204,10 @@ export function CoursesTable({
 
 function StatusBadge({ status }: { status: 'unassigned' | 'partial' | 'full' | 'over' }) {
   const configs = {
-    unassigned: { icon: AlertCircle, label: 'Nieobsadzony', color: 'bg-destructive/10 text-destructive border-destructive/20' },
-    partial: { icon: Clock, label: 'Częściowy', color: 'bg-status-warning-bg text-status-warning-fg border-status-warning-fg/20' },
-    full: { icon: CheckCircle2, label: 'Obsadzony', color: 'bg-status-active-bg text-status-active-fg border-status-active-fg/20' },
-    over: { icon: ArrowUpCircle, label: 'Nadmiar', color: 'bg-purple-500/10 text-purple-600 border-purple-500/20' },
+    unassigned: { icon: AlertCircle, label: 'Brak', color: 'bg-red-50 text-red-700 border-red-200 print:bg-red-50 print:text-red-700 print:border-red-300' },
+    partial: { icon: Clock, label: 'Częściowy', color: 'bg-amber-50 text-amber-700 border-amber-200 print:bg-amber-50 print:text-amber-700 print:border-amber-300' },
+    full: { icon: CheckCircle2, label: 'Obsadzony', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 print:bg-emerald-50 print:text-emerald-700 print:border-emerald-300' },
+    over: { icon: ArrowUpCircle, label: 'Nadmiar', color: 'bg-purple-50 text-purple-700 border-purple-200 print:bg-purple-50 print:text-purple-700 print:border-purple-300' },
   };
 
   const config = configs[status];
@@ -216,9 +216,9 @@ function StatusBadge({ status }: { status: 'unassigned' | 'partial' | 'full' | '
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full border text-[10px] font-bold w-fit ${config.color}`}>
-          <Icon className="h-3 w-3" />
-          <span className="hidden sm:inline uppercase tracking-tight">{config.label}</span>
+        <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold w-fit whitespace-nowrap ${config.color}`}>
+          <Icon className="h-3 w-3 shrink-0" />
+          <span className="uppercase tracking-tight">{config.label}</span>
         </div>
       </TooltipTrigger>
       <TooltipContent>Status obsadzenia: {config.label}</TooltipContent>
@@ -240,7 +240,7 @@ function AllocationCell({ course, onAllocate }: { course: Course; onAllocate: (c
   );
 
   return (
-    <div className="flex flex-col gap-2 items-start">
+    <div className="flex flex-col gap-1 items-start">
       <button
         onClick={() => onAllocate(course)}
         className="text-[10px] bg-muted/50 border hover:bg-muted text-muted-foreground px-2 py-0.5 rounded transition-colors print:hidden"
@@ -250,44 +250,53 @@ function AllocationCell({ course, onAllocate }: { course: Course; onAllocate: (c
           : '+ Dodaj obsadę'}
       </button>
 
-      {allocations.length > 0 && (
-        <div className="flex flex-wrap gap-1 w-full mt-0.5 max-w-[300px]">
-          {allocations.map((alloc: any) => (
-            <Tooltip key={alloc.id}>
-              <TooltipTrigger asChild>
-                <div className="text-[10px] bg-background border border-border/50 shadow-sm rounded px-1.5 py-0.5 flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(alloc.teacher.lastName, 'Nazwisko')}
-                    className="text-primary/70 font-semibold underline decoration-dotted underline-offset-2 hover:text-primary"
-                    title="Kopiuj nazwisko prowadzącego"
-                  >
-                    {alloc.teacher.lastName}
-                  </button>
-                  {alloc.groups?.length > 0 && (
-                    <span className="text-muted-foreground font-medium">
-                      · {alloc.groups.map((groupAllocation: any) => `gr${groupNumbers.get(groupAllocation.groupId)}`).join(', ')}
+      {allocations.length === 0 ? (
+        <span className="hidden print:inline text-[10px] text-muted-foreground italic font-medium">
+          — Brak obsady —
+        </span>
+      ) : (
+        <div className="flex flex-wrap gap-1 w-full mt-0.5 max-w-[340px] print:max-w-none">
+          {allocations.map((alloc: any) => {
+            const teacherFullName = `${alloc.teacher?.title || ''} ${alloc.teacher?.firstName || ''} ${alloc.teacher?.lastName || ''}`.trim() || alloc.teacher?.lastName || 'Prowadzący';
+            return (
+              <Tooltip key={alloc.id}>
+                <TooltipTrigger asChild>
+                  <div className="text-[10px] bg-background print:bg-white border border-border/70 print:border-slate-300 shadow-sm rounded px-1.5 py-0.5 flex items-center gap-1">
+                    <span className="text-primary font-semibold print:text-black">
+                      {teacherFullName}
                     </span>
-                  )}
-                  <span className="text-[8px] bg-muted px-1 rounded uppercase font-bold">{alloc.assignedHours}h</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent className="p-2">
-                <div className="text-xs">
-                  <p className="font-bold">{alloc.teacher.firstName} {alloc.teacher.lastName}</p>
-                  <p className="text-muted-foreground mt-1">Typ zajęć: {decodeType(alloc.classType || course.type)}</p>
-                  <p className="text-muted-foreground">Liczba godzin: {alloc.assignedHours}h</p>
-                  {alloc.groups?.length > 0 && (
-                    <div className="mt-2 pt-1 border-t flex flex-wrap gap-1">
-                      {alloc.groups.map((g: any) => (
-                        <span key={g.groupId} className="bg-primary/10 text-primary px-1 rounded text-[10px]">gr{groupNumbers.get(g.groupId)}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          ))}
+                    {alloc.classType && alloc.classType !== course.type && (
+                      <span className="text-[8px] bg-primary/10 text-primary font-bold px-1 rounded uppercase">
+                        {alloc.classType}
+                      </span>
+                    )}
+                    {alloc.groups?.length > 0 && (
+                      <span className="text-muted-foreground font-medium print:text-slate-600">
+                        · {alloc.groups.map((groupAllocation: any) => `gr ${groupNumbers.get(groupAllocation.groupId)}`).join(', ')}
+                      </span>
+                    )}
+                    <span className="text-[8px] bg-muted print:bg-slate-100 print:text-black px-1 rounded uppercase font-bold">
+                      {alloc.assignedHours}h
+                    </span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="p-2">
+                  <div className="text-xs">
+                    <p className="font-bold">{teacherFullName}</p>
+                    <p className="text-muted-foreground mt-1">Typ zajęć: {decodeType(alloc.classType || course.type)}</p>
+                    <p className="text-muted-foreground">Liczba godzin: {alloc.assignedHours}h</p>
+                    {alloc.groups?.length > 0 && (
+                      <div className="mt-2 pt-1 border-t flex flex-wrap gap-1">
+                        {alloc.groups.map((g: any) => (
+                          <span key={g.groupId} className="bg-primary/10 text-primary px-1 rounded text-[10px]">gr {groupNumbers.get(g.groupId)}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
         </div>
       )}
     </div>
@@ -305,20 +314,20 @@ function HoursCell({ metrics }: { metrics: any }) {
       </div>
 
       {/* Mini Progress Bar */}
-      <div className="w-24 h-1.5 bg-muted rounded-full mt-1.5 overflow-hidden border">
+      <div className="w-20 h-1.5 bg-muted rounded-full mt-1.5 overflow-hidden border print:border-slate-300">
         <div
           className={`h-full transition-all duration-500 ${status === 'unassigned' ? 'w-0' :
-            status === 'partial' ? 'bg-status-warning-bg0' :
-              status === 'full' ? 'bg-status-active-bg0' : 'bg-purple-500'
+            status === 'partial' ? 'bg-amber-500' :
+              status === 'full' ? 'bg-emerald-500' : 'bg-purple-500'
             }`}
           style={{ width: `${Math.min((totalAssigned / expectedTotalHours) * 100, 100)}%` }}
         />
       </div>
 
       <div className="mt-1 flex items-center gap-1">
-        <Info className="h-2.5 w-2.5 text-muted-foreground" />
-        <span className="text-[9px] text-muted-foreground font-medium">
-          {nominalHours}h × {expectedGroups} {expectedGroups === 1 ? 'grupa' : 'grupy'}
+        <Info className="h-2.5 w-2.5 text-muted-foreground print:hidden" />
+        <span className="text-[9px] text-muted-foreground font-medium whitespace-nowrap">
+          {nominalHours}h × {expectedGroups} {expectedGroups === 1 ? 'gr.' : 'gr.'}
         </span>
       </div>
     </div>
