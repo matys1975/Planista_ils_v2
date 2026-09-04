@@ -178,9 +178,7 @@ export function DictionaryTeachers() {
     : null;
 
   const toggleUnit = (unit: string) => {
-    setSelectedUnits(prev =>
-      prev.includes(unit) ? prev.filter(u => u !== unit) : [...prev, unit]
-    );
+    setSelectedUnitKey(prev => (prev === unit ? 'all' : unit));
   };
 
   const handleExportCSV = () => {
@@ -230,10 +228,10 @@ export function DictionaryTeachers() {
                 label="Ogółem"
                 color="text-navy-dark"
                 bgColor="bg-cream-dark"
-                isActive={selectedUnits.length === 0}
-                onClick={() => setSelectedUnits([])}
+                isActive={selectedUnitKey === 'all'}
+                onClick={() => setSelectedUnitKey('all')}
               />
-              {selectedUnits.length > 0 && (
+              {selectedUnitKey !== 'all' && (
                 <StatPill
                   count={filteredTeachers.length}
                   label="Wybrano"
