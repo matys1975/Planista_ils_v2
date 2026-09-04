@@ -82,9 +82,14 @@ export default async function teachersRoutes(server: FastifyInstance) {
     try {
       const payload = createTeacherSchema.parse(request.body);
 
-      // Find the institute by its name (payload.unit)
+      // Find the institute by its name or shortCode (payload.unit)
       const targetInst = await prisma.institute.findFirst({
-        where: { name: payload.unit }
+        where: {
+          OR: [
+            { name: { equals: payload.unit, mode: 'insensitive' } },
+            { shortCode: { equals: payload.unit, mode: 'insensitive' } }
+          ]
+        }
       });
       if (!targetInst) {
         return reply.code(400).send({ error: 'Nieprawidłowa jednostka organizacyjna.' });
@@ -93,6 +98,7 @@ export default async function teachersRoutes(server: FastifyInstance) {
       const teacher = await prisma.teacher.create({
         data: {
           ...payload,
+          unit: targetInst.name,
           instituteId: targetInst.id,
         },
       });
@@ -185,15 +191,22 @@ export default async function teachersRoutes(server: FastifyInstance) {
 
       const payload = updateTeacherSchema.parse(request.body);
       let targetInstituteId = existingTeacher.instituteId;
+      let targetUnitName = payload.unit;
 
       if (payload.unit) {
         const targetInst = await prisma.institute.findFirst({
-          where: { name: payload.unit }
+          where: {
+            OR: [
+              { name: { equals: payload.unit, mode: 'insensitive' } },
+              { shortCode: { equals: payload.unit, mode: 'insensitive' } }
+            ]
+          }
         });
         if (!targetInst) {
           return reply.code(400).send({ error: 'Nieprawidłowa jednostka organizacyjna.' });
         }
         targetInstituteId = targetInst.id;
+        targetUnitName = targetInst.name;
       }
 
       const { version, ...updateData } = payload;
@@ -204,6 +217,7 @@ export default async function teachersRoutes(server: FastifyInstance) {
         where: version !== undefined ? { id, version } : { id },
         data: {
           ...updateData,
+          ...(targetUnitName ? { unit: targetUnitName } : {}),
           instituteId: targetInstituteId,
           version: { increment: 1 }
         },

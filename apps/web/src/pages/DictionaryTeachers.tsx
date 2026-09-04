@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Users, Plus, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Teacher } from '../types/models';
 import { exportToCsv } from '../utils/exportToCsv';
 import { fetchApi } from '../lib/api';
+import { getInstituteShortLabel } from '../utils/instituteLabels';
 import { TeacherFormSheet, type TeacherFormData } from '../components/teachers/TeacherFormSheet';
 import { TeacherAllocationSheet } from '../components/teachers/TeacherAllocationSheet';
 import { TeacherPreviewSheet } from '../components/teachers/TeacherPreviewSheet';
@@ -36,7 +37,7 @@ export function DictionaryTeachers() {
 
   const queryClient = useQueryClient();
 
-  const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
+  const [selectedUnitKey, setSelectedUnitKey] = useState<string>('all');
 
   // ─── Queries ───────────────────────────────────────────────────────────────
   const { data: teachersData, isLoading } = useQuery({ queryKey: ['teachers'], queryFn: fetchTeachers });
@@ -44,16 +45,55 @@ export function DictionaryTeachers() {
   const { data: groupsData } = useQuery({ queryKey: ['groups'], queryFn: fetchGroups, enabled: !!allocatingTeacher });
   const { data: institutesData } = useQuery({ queryKey: ['institutes'], queryFn: () => fetchApi('/institutes') });
 
-  // ─── Deriving unique units for filter ──────────────────────────────────────
-  const uniqueUnits = Array.from(new Set((teachersData?.data || []).map((t: Teacher) => t.unit))).sort() as string[];
-  const instituteShortCodeByName = new Map(
+  // ─── Canonical unit grouping for filter (eliminates duplicate tabs) ────────
+  const instituteShortCodeByName = useMemo(() => new Map(
     (institutesData?.data || []).map((inst: any) => [inst.name, inst.shortCode || null])
-  );
+  ), [institutesData]);
 
-  const filteredTeachers = (teachersData?.data || []).filter((t: Teacher) => {
-    if (selectedUnits.length === 0) return true;
-    return selectedUnits.includes(t.unit);
-  });
+  const unitGroups = useMemo(() => {
+    const groups = new Map<string, { id: string; name: string; shortCode: string | null; count: number; aliases: string[] }>();
+
+    (teachersData?.data || []).forEach((t: Teacher) => {
+      const canonicalName = (t as any).institute?.name || t.unit;
+      const shortCode = (t as any).institute?.shortCode || instituteShortCodeByName.get(canonicalName) || instituteShortCodeByName.get(t.unit) || getInstituteShortLabel(canonicalName);
+      
+      // Group by canonical shortCode if available, otherwise by canonical institute name
+      const key = (shortCode && shortCode !== '—') ? shortCode : canonicalName;
+
+      if (!groups.has(key)) {
+        groups.set(key, {
+          id: key,
+          name: canonicalName,
+          shortCode: shortCode || null,
+          count: 0,
+          aliases: [],
+        });
+      }
+
+      const g = groups.get(key)!;
+      g.count += 1;
+      if (!g.aliases.includes(t.unit)) g.aliases.push(t.unit);
+      if (canonicalName && !g.aliases.includes(canonicalName)) g.aliases.push(canonicalName);
+      if (canonicalName.length > g.name.length) g.name = canonicalName;
+    });
+
+    return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name, 'pl'));
+  }, [teachersData, instituteShortCodeByName]);
+
+  const selectedGroup = unitGroups.find(g => g.id === selectedUnitKey);
+
+  const filteredTeachers = useMemo(() => {
+    return (teachersData?.data || []).filter((t: Teacher) => {
+      if (!selectedUnitKey || selectedUnitKey === 'all') return true;
+      if (!selectedGroup) return true;
+      const tCanonical = (t as any).institute?.name || t.unit;
+      const tShort = (t as any).institute?.shortCode || instituteShortCodeByName.get(tCanonical) || getInstituteShortLabel(tCanonical);
+      return selectedGroup.aliases.includes(t.unit) ||
+             selectedGroup.aliases.includes(tCanonical) ||
+             (tShort === selectedUnitKey) ||
+             ((t as any).instituteId && (t as any).institute?.name === selectedGroup.name);
+    });
+  }, [teachersData, selectedUnitKey, selectedGroup, instituteShortCodeByName]);
 
   const invalidateTeachers = () => {
     queryClient.invalidateQueries({ queryKey: ['teachers'] });
@@ -217,16 +257,16 @@ export function DictionaryTeachers() {
         </div>
 
         {/* ─── DENSE UNIT FILTER BAR ─── */}
-        {uniqueUnits.length > 0 && (
+        {unitGroups.length > 0 && (
           <InstituteTilesFilter
-            items={uniqueUnits.map((unit) => ({
-              id: unit,
-              name: unit,
-              shortCode: instituteShortCodeByName.get(unit) || null,
-              count: (teachersData?.data || []).filter((t: Teacher) => t.unit === unit).length,
+            items={unitGroups.map((group) => ({
+              id: group.id,
+              name: group.name,
+              shortCode: group.shortCode,
+              count: group.count,
             }))}
-            selectedId={selectedUnits.length === 1 ? selectedUnits[0] : 'all'}
-            onSelect={(id) => setSelectedUnits(id === 'all' ? [] : [id])}
+            selectedId={selectedUnitKey}
+            onSelect={(id) => setSelectedUnitKey(id)}
             allCount={teachersData?.data?.length || 0}
             className="print:hidden"
           />

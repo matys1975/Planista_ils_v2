@@ -39,6 +39,25 @@ async function main() {
     console.log('✅ Utworzono jednostkę OKPKN.');
   }
 
+  // Normalizuj nazwy jednostek w tabeli Teacher, aby uniknąć duplikatów kafelków (np. "SJ UAM" vs "Studium Językowe UAM")
+  try {
+    await prisma.$executeRawUnsafe(`
+      UPDATE "Teacher" t
+      SET unit = i.name
+      FROM "Institute" i
+      WHERE t."instituteId" = i.id AND t.unit != i.name;
+    `);
+    await prisma.$executeRawUnsafe(`
+      UPDATE "Teacher" t
+      SET "instituteId" = i.id, unit = i.name
+      FROM "Institute" i
+      WHERE t."instituteId" IS NULL
+        AND (LOWER(TRIM(t.unit)) = LOWER(TRIM(i."shortCode")) OR LOWER(TRIM(t.unit)) = LOWER(TRIM(i.name)));
+    `);
+  } catch (err) {
+    console.warn('Ostrzeżenie przy normalizacji jednostek nauczycieli:', err);
+  }
+
   const userCount = await prisma.user.count();
 
   if (userCount > 0) {
