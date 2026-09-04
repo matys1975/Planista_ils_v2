@@ -197,3 +197,19 @@
   }
 }
 
+/* ═══ Search pulse & highlight animation ═══ */
+@keyframes search-pulse-glow {
+  0%, 100% {
+    background-color: rgba(245, 158, 11, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.35);
+  }
+  50% {
+    background-color: rgba(245, 158, 11, 0.22);
+    box-shadow: inset 0 0 0 2px rgba(245, 158, 11, 0.7);
+  }
+}
+
+.animate-search-pulse {
+  animation: search-pulse-glow 1.8s ease-in-out infinite !important;
+}
+

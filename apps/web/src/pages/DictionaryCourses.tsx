@@ -1,8 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useState, useMemo, useEffect } from 'react';
-import { BookOpen, Plus, Printer, AlertCircle, CheckCircle2, Clock, ArrowUpCircle, Download, Layers2, ChevronDown, ChevronUp } from 'lucide-react';
+import { BookOpen, Plus, Printer, AlertCircle, CheckCircle2, Clock, ArrowUpCircle, Download, Layers2, ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import type { Course, Semester } from '../types/models';
 import { exportToCsv } from '../utils/exportToCsv';
 import { parseCourseCode } from '../utils/courseUtils';
@@ -41,6 +42,7 @@ export function DictionaryCourses() {
   const [selectedInstituteId, setSelectedInstituteId] = useState('all');
   const [isCommonCoursesCollapsed, setIsCommonCoursesCollapsed] = useState(true);
   const [formError, setFormError] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const queryClient = useQueryClient();
   const { activeSemesterId, setActiveSemesterId, role } = useAuthStore();
@@ -178,8 +180,26 @@ export function DictionaryCourses() {
       ? courses
       : courses.filter((course: any) => course.instituteId === selectedInstituteId);
 
-    // First pass: Calculate stats for the current major/year selection
+    const query = searchQuery.trim().toLowerCase();
+
+    // First pass: Calculate stats for the current major/year selection (or global search query)
     const baseFiltered = scopedByInstitute.filter((course: any) => {
+      if (query) {
+        const inCode = course.code?.toLowerCase().includes(query);
+        const inName = course.name?.toLowerCase().includes(query);
+        const inUsosId = course.usosId?.toLowerCase().includes(query);
+        const inMajors = course.majors?.some((m: any) =>
+          m.major?.code?.toLowerCase().includes(query) ||
+          m.major?.name?.toLowerCase().includes(query)
+        );
+        const inTeachers = course.allocations?.some((a: any) =>
+          `${a.teacher?.title || ''} ${a.teacher?.firstName || ''} ${a.teacher?.lastName || ''}`
+            .toLowerCase()
+            .includes(query)
+        );
+        return inCode || inName || inUsosId || inMajors || inTeachers;
+      }
+
       const majorMatch = activeMajorTab === 'all' || course.majors?.some((m: any) => m.major?.code === activeMajorTab);
       if (!majorMatch) return false;
       if (activeMajorTab === 'all' || activeYearTab === 'all') return true;
@@ -213,7 +233,7 @@ export function DictionaryCourses() {
         percent: total > 0 ? Math.round((full / total) * 100) : 0
       }
     };
-  }, [coursesData, activeMajorTab, activeYearTab, activeStatusFilter, selectedInstituteId]);
+  }, [coursesData, activeMajorTab, activeYearTab, activeStatusFilter, selectedInstituteId, searchQuery]);
 
   const visibleMajors = useMemo(() => {
     if (selectedInstituteId === 'all') {
@@ -318,10 +338,9 @@ export function DictionaryCourses() {
 
   return (
     <div className="space-y-4 flex flex-col p-4 sm:p-6 animate-in fade-in duration-500">
-      {/* Header */}
       {/* ─── COMPACT PREMIUM HEADER ─── */}
-      <div className="flex flex-col sm:flex-row justify-between items-center bg-background/50 backdrop-blur-md px-4 py-3 rounded-xl border border-border/50 shadow-sm gap-4 print:hidden">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col lg:flex-row justify-between items-center bg-background/50 backdrop-blur-md px-4 py-3 rounded-xl border border-border/50 shadow-sm gap-4 print:hidden">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="p-2 bg-primary rounded-lg shadow-primary/10 shadow-lg">
             <BookOpen className="h-5 w-5 text-white" />
           </div>
@@ -350,14 +369,36 @@ export function DictionaryCourses() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="h-8 text-xs font-bold px-3 gap-1.5 hover:bg-muted" onClick={handleExportCSV}>
+        <div className="flex items-center gap-2 w-full lg:w-auto justify-end flex-wrap sm:flex-nowrap">
+          {/* Search bar */}
+          <div className="relative w-full sm:w-64 md:w-72">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              type="text"
+              placeholder="Szukaj kodu, nazwy, prowadzącego..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 pl-8 pr-7 text-xs bg-background/80 border-border/70 focus-visible:ring-1"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded transition-colors"
+                title="Wyczyść wyszukiwanie"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          <Button variant="outline" size="sm" className="h-8 text-xs font-bold px-3 gap-1.5 hover:bg-muted shrink-0" onClick={handleExportCSV}>
             <Download className="h-3.5 w-3.5" /> Eksportuj (CSV)
           </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs font-bold px-3 gap-1.5 hover:bg-muted" onClick={handlePrint}>
+          <Button variant="outline" size="sm" className="h-8 text-xs font-bold px-3 gap-1.5 hover:bg-muted shrink-0" onClick={handlePrint}>
             <Printer className="h-3.5 w-3.5" /> Drukuj
           </Button>
-          <Button size="sm" className="h-8 text-xs font-bold px-4 gap-1.5 bg-primary hover:bg-primary/90 shadow-md shadow-primary/10" onClick={openCreate}>
+          <Button size="sm" className="h-8 text-xs font-bold px-4 gap-1.5 bg-primary hover:bg-primary/90 shadow-md shadow-primary/10 shrink-0" onClick={openCreate}>
             <Plus className="h-3.5 w-3.5" /> Dodaj
           </Button>
         </div>
@@ -504,6 +545,24 @@ export function DictionaryCourses() {
 
       {/* Table with major/year filter tabs */}
       <div className="bg-card rounded-xl border shadow-sm print:border-none print:shadow-none">
+        {searchQuery.trim() && (
+          <div className="flex items-center justify-between px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-xs text-amber-900 dark:text-amber-200 print:hidden">
+            <span className="flex items-center gap-1.5">
+              <Search className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>
+                Wyniki wyszukiwania dla: <strong>"{searchQuery}"</strong> — znaleziono <strong>{filteredCourses.length}</strong> {filteredCourses.length === 1 ? 'przedmiot' : 'przedmiotów'}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="text-[11px] font-bold text-amber-700 dark:text-amber-300 hover:underline flex items-center gap-1 shrink-0"
+            >
+              <X className="h-3 w-3" /> Wyczyść
+            </button>
+          </div>
+        )}
+
         {/* Major tabs */}
         <div className="flex px-4 pt-3 pb-1.5 gap-2 overflow-x-auto border-b print:hidden bg-muted/5">
           <button
@@ -598,6 +657,7 @@ export function DictionaryCourses() {
           isLoading={isLoadingCourses}
           activeMajorTab={activeMajorTab}
           activeYearTab={activeYearTab}
+          searchQuery={searchQuery}
           onEdit={openEdit}
           onDelete={(id) => deleteMutation.mutate(id)}
           onAllocate={setAllocatingCourse}

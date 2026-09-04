@@ -5,10 +5,12 @@ import {
 } from '@/components/ui/table';
 import type { Teacher } from '../../types/models';
 import { getInstituteShortLabel } from '../../utils/instituteLabels';
+import { HighlightText } from '../common/HighlightText';
 
 interface TeachersTableProps {
   teachers: Teacher[];
   isLoading: boolean;
+  searchQuery?: string;
   onEdit: (teacher: Teacher) => void;
   onDelete: (id: string) => void;
   onAllocate: (teacher: Teacher) => void;
@@ -20,6 +22,7 @@ interface TeachersTableProps {
 export function TeachersTable({
   teachers,
   isLoading,
+  searchQuery,
   onEdit,
   onDelete,
   onAllocate,
@@ -27,6 +30,8 @@ export function TeachersTable({
   onPrint,
   onPrintSchedule,
 }: TeachersTableProps) {
+  const isSearchActive = Boolean(searchQuery && searchQuery.trim().length > 0);
+
   return (
     <Table>
       <TableHeader>
@@ -43,15 +48,22 @@ export function TeachersTable({
           </TableRow>
         ) : teachers.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">Brak prowadzących w bazie danych.</TableCell>
+            <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">
+              {isSearchActive ? 'Brak prowadzących pasujących do wyszukiwania.' : 'Brak prowadzących w bazie danych.'}
+            </TableCell>
           </TableRow>
         ) : teachers.map((teacher: Teacher) => (
-          <TableRow key={teacher.id} className="transition-colors hover:bg-muted/50 odd:bg-cream dark:odd:bg-navy-deep/50 even:bg-background border-b border-border/50">
+          <TableRow
+            key={teacher.id}
+            className={`transition-colors hover:bg-muted/50 odd:bg-cream dark:odd:bg-navy-deep/50 even:bg-background border-b border-border/50 ${
+              isSearchActive ? 'animate-search-pulse bg-amber-50/30 dark:bg-amber-950/20' : ''
+            }`}
+          >
             <TableCell>
-              <TeacherInfoCell teacher={teacher} />
+              <TeacherInfoCell teacher={teacher} searchQuery={searchQuery} />
             </TableCell>
             <TableCell>
-              <TeacherAllocationCell teacher={teacher} onAllocate={onAllocate} />
+              <TeacherAllocationCell teacher={teacher} onAllocate={onAllocate} searchQuery={searchQuery} />
             </TableCell>
             <TableCell className="text-right">
               <div className="flex gap-1 justify-end">
@@ -79,23 +91,31 @@ export function TeachersTable({
   );
 }
 
-function TeacherInfoCell({ teacher }: { teacher: Teacher }) {
+function TeacherInfoCell({ teacher, searchQuery }: { teacher: Teacher; searchQuery?: string }) {
   const assignedHours = (teacher as any).allocations?.reduce((sum: number, alloc: any) => sum + (alloc.assignedHours || 0), 0) || 0;
   const pensumPct = teacher.pensumLimit > 0 ? Math.min(100, Math.round((assignedHours / teacher.pensumLimit) * 100)) : 0;
   const isOver = assignedHours > teacher.pensumLimit;
+  const fullName = `${teacher.firstName} ${teacher.lastName}`;
 
   return (
     <div className="flex flex-col gap-1">
       <div>
-        <span className="font-bold text-[14px] text-foreground">{teacher.firstName} {teacher.lastName}</span>
+        <span className="font-bold text-[14px] text-foreground">
+          <HighlightText text={fullName} query={searchQuery} />
+        </span>
         {teacher.title && <span className="text-[11px] font-medium italic text-primary/70 ml-1.5">{teacher.title}</span>}
       </div>
+      {teacher.email && (
+        <span className="text-[11px] text-muted-foreground font-mono">
+          <HighlightText text={teacher.email} query={searchQuery} />
+        </span>
+      )}
       <div className="flex items-center gap-2 flex-wrap">
         <span
           className="px-2 py-0.5 bg-primary/10 border border-primary/20 rounded text-[10px] font-bold text-primary"
           title={teacher.unit}
         >
-          {getInstituteShortLabel(teacher.unit)}
+          <HighlightText text={getInstituteShortLabel(teacher.unit)} query={searchQuery} />
         </span>
         <div className="flex items-center gap-1.5">
           <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden" title={`${Math.round(assignedHours)}h / ${teacher.pensumLimit}h`}>
@@ -113,7 +133,15 @@ function TeacherInfoCell({ teacher }: { teacher: Teacher }) {
   );
 }
 
-function TeacherAllocationCell({ teacher, onAllocate }: { teacher: Teacher; onAllocate: (t: Teacher) => void }) {
+function TeacherAllocationCell({
+  teacher,
+  onAllocate,
+  searchQuery,
+}: {
+  teacher: Teacher;
+  onAllocate: (t: Teacher) => void;
+  searchQuery?: string;
+}) {
   const allocations = (teacher as any).allocations ?? [];
   return (
     <div className="flex flex-col gap-2 items-start">
@@ -132,7 +160,9 @@ function TeacherAllocationCell({ teacher, onAllocate }: { teacher: Teacher; onAl
           {allocations.slice(0, 5).map((alloc: any) => (
             <div key={alloc.id} className="text-[10px] bg-primary/5 border border-primary/20 shadow-sm rounded-md p-1.5 min-w-[120px] max-w-[200px]">
               <div className="flex justify-between items-start gap-1">
-                <div className="font-bold text-primary leading-tight truncate" title={alloc.course.name}>{alloc.course.name}</div>
+                <div className="font-bold text-primary leading-tight truncate" title={alloc.course.name}>
+                  <HighlightText text={alloc.course.name} query={searchQuery} />
+                </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <span className={`text-[8px] font-bold px-1 py-0.5 rounded ${(alloc.classType || alloc.course.type) === 'W' ? 'bg-status-info-bg/20 text-navy-dark' :
                       (alloc.classType || alloc.course.type) === 'C' ? 'bg-status-warning-bg/20 text-status-warning-fg' :
@@ -158,3 +188,4 @@ function TeacherAllocationCell({ teacher, onAllocate }: { teacher: Teacher; onAl
     </div>
   );
 }
+

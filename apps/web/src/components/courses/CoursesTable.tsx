@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { Course } from '../../types/models';
 import { Badge } from '@/components/ui/badge';
+import { HighlightText } from '../common/HighlightText';
 
 // Converts course type code to a human-readable label
 export function decodeType(t: string): string {
@@ -37,6 +38,7 @@ interface CoursesTableProps {
   isLoading: boolean;
   activeMajorTab: string;
   activeYearTab: string;
+  searchQuery?: string;
   onEdit: (course: Course) => void;
   onDelete: (id: string) => void;
   onAllocate: (course: Course) => void;
@@ -66,6 +68,7 @@ export function CoursesTable({
   isLoading,
   activeMajorTab,
   activeYearTab,
+  searchQuery,
   onEdit,
   onDelete,
   onAllocate,
@@ -117,9 +120,15 @@ export function CoursesTable({
                     </TableRow>
                     {semCourses.map((course: any) => {
                       const metrics = getAllocationMetrics(course);
+                      const isHighlighted = Boolean(searchQuery && searchQuery.trim().length > 0);
 
                       return (
-                        <TableRow key={course.id} className="transition-colors border-b border-border/50 group">
+                        <TableRow
+                          key={course.id}
+                          className={`transition-colors border-b border-border/50 group ${
+                            isHighlighted ? 'animate-search-pulse bg-amber-50/30 dark:bg-amber-950/20' : ''
+                          }`}
+                        >
                           {/* Status Badge */}
                           <TableCell>
                             <StatusBadge status={metrics.status} />
@@ -129,16 +138,18 @@ export function CoursesTable({
                             <button
                               type="button"
                               onClick={() => copyToClipboard(course.code, 'Kod przedmiotu')}
-                              className="font-mono text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-primary transition-colors"
+                              className="font-mono text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-primary transition-colors text-left"
                               title="Kopiuj kod przedmiotu"
                             >
-                              {course.code}
+                              <HighlightText text={course.code} query={searchQuery} />
                             </button>
                           </TableCell>
 
                           <TableCell>
                             <div className="flex flex-col">
-                              <span className="font-semibold text-[13px] group-hover:text-primary transition-colors">{course.name}</span>
+                              <span className="font-semibold text-[13px] group-hover:text-primary transition-colors">
+                                <HighlightText text={course.name} query={searchQuery} />
+                              </span>
                               <span className="text-[10px] text-muted-foreground">{course.semester?.name}</span>
                             </div>
                           </TableCell>
@@ -148,7 +159,7 @@ export function CoursesTable({
                             <div className="flex flex-wrap gap-1">
                               {course.majors && course.majors.length > 0 ? course.majors.map((m: any) => (
                                 <Badge key={`${m.majorId}-${m.year}`} variant="outline" className="text-[9px] px-1.5 py-0 h-5 font-bold border-primary/20 bg-primary/5 text-primary">
-                                  {m.major?.code} ({m.year}r)
+                                  <HighlightText text={m.major?.code} query={searchQuery} /> ({m.year}r)
                                 </Badge>
                               )) : <span className="text-[10px] text-muted-foreground italic">Ogólny</span>}
                             </div>
@@ -166,7 +177,7 @@ export function CoursesTable({
 
                           {/* Przydziały */}
                           <TableCell>
-                            <AllocationCell course={course} onAllocate={onAllocate} />
+                            <AllocationCell course={course} onAllocate={onAllocate} searchQuery={searchQuery} />
                           </TableCell>
 
                           {/* Godziny */}
@@ -226,7 +237,15 @@ function StatusBadge({ status }: { status: 'unassigned' | 'partial' | 'full' | '
   );
 }
 
-function AllocationCell({ course, onAllocate }: { course: Course; onAllocate: (c: Course) => void }) {
+function AllocationCell({
+  course,
+  onAllocate,
+  searchQuery,
+}: {
+  course: Course;
+  onAllocate: (c: Course) => void;
+  searchQuery?: string;
+}) {
   const allocations = (course as any).allocations ?? [];
   const groupNumbers = new Map(
     Array.from(
@@ -263,7 +282,7 @@ function AllocationCell({ course, onAllocate }: { course: Course; onAllocate: (c
                 <TooltipTrigger asChild>
                   <div className="text-[10px] bg-background print:bg-white border border-border/70 print:border-slate-300 shadow-sm rounded px-1.5 py-0.5 flex items-center gap-1">
                     <span className="text-primary font-semibold print:text-black">
-                      {teacherFullName}
+                      <HighlightText text={teacherFullName} query={searchQuery} />
                     </span>
                     {alloc.classType && alloc.classType !== course.type && (
                       <span className="text-[8px] bg-primary/10 text-primary font-bold px-1 rounded uppercase">
@@ -282,7 +301,9 @@ function AllocationCell({ course, onAllocate }: { course: Course; onAllocate: (c
                 </TooltipTrigger>
                 <TooltipContent className="p-2">
                   <div className="text-xs">
-                    <p className="font-bold">{teacherFullName}</p>
+                    <p className="font-bold">
+                      <HighlightText text={teacherFullName} query={searchQuery} />
+                    </p>
                     <p className="text-muted-foreground mt-1">Typ zajęć: {decodeType(alloc.classType || course.type)}</p>
                     <p className="text-muted-foreground">Liczba godzin: {alloc.assignedHours}h</p>
                     {alloc.groups?.length > 0 && (
@@ -302,6 +323,7 @@ function AllocationCell({ course, onAllocate }: { course: Course; onAllocate: (c
     </div>
   );
 }
+
 
 function HoursCell({ metrics }: { metrics: any }) {
   const { totalAssigned, expectedTotalHours, nominalHours, expectedGroups, status } = metrics;
