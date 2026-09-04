@@ -121,9 +121,11 @@ export function buildInstituteWhere(scope: ScopeFilter): { instituteId?: string;
   return { instituteId: '__NO_ACCESS__' };
 }
 
+export const SHARED_INSTITUTE_SHORT_CODES = ['UCP', 'OKPKN', 'SJ UAM', 'Zlecenie'] as const;
+
 /**
  * Builds a Prisma where-clause fragment for Teacher model queries
- * (enabling ADMIN/PLANNER/VIEWER to see both their own institute teachers and UCP teachers).
+ * (enabling ADMIN/PLANNER/VIEWER to see both their own institute teachers and shared unit teachers).
  */
 export function buildTeacherWhere(scope: ScopeFilter): any {
   if (scope.isSuperAdmin && scope.instituteId) {
@@ -139,8 +141,7 @@ export function buildTeacherWhere(scope: ScopeFilter): any {
     return {
       OR: [
         { instituteId: scope.instituteId },
-        { institute: { shortCode: 'UCP' } },
-        { institute: { shortCode: 'OKPKN' } },
+        ...SHARED_INSTITUTE_SHORT_CODES.map(code => ({ institute: { shortCode: code } })),
         {
           // Prowadzący z innych jednostek, którzy mają alokacje na kursach tego instytutu
           allocations: {
@@ -173,8 +174,7 @@ export function buildTeacherInstituteWhere(scope: ScopeFilter): any {
     return {
       OR: [
         { teacher: { instituteId: scope.instituteId } },
-        { teacher: { institute: { shortCode: 'UCP' } } },
-        { teacher: { institute: { shortCode: 'OKPKN' } } }
+        ...SHARED_INSTITUTE_SHORT_CODES.map(code => ({ teacher: { institute: { shortCode: code } } }))
       ]
     };
   }

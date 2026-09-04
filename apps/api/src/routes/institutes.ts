@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
-import { extractFullScope } from '../lib/rbac';
+import { extractFullScope, SHARED_INSTITUTE_SHORT_CODES } from '../lib/rbac';
 
 export default async function institutesRoutes(server: FastifyInstance) {
   server.get('/api/v1/institutes', { preValidation: [server.authenticate] }, async (request, reply) => {
@@ -13,7 +13,7 @@ export default async function institutesRoutes(server: FastifyInstance) {
         // Dean — see only institutes belonging to their faculty
         whereClause = { facultyId: sc.facultyId };
       } else if (sc.instituteId) {
-        // Admin/Planner — see all institutes in their faculty + shared units (UCP, OKPKN, unassigned)
+        // Admin/Planner — see all institutes in their faculty + shared units (UCP, OKPKN, SJ UAM, Zlecenie, unassigned)
         const inst = await prisma.institute.findUnique({
           where: { id: sc.instituteId },
           select: { facultyId: true },
@@ -22,8 +22,7 @@ export default async function institutesRoutes(server: FastifyInstance) {
           whereClause = {
             OR: [
               { facultyId: inst.facultyId },
-              { shortCode: 'UCP' },
-              { shortCode: 'OKPKN' },
+              ...SHARED_INSTITUTE_SHORT_CODES.map(code => ({ shortCode: code })),
               { facultyId: null },
             ],
           };

@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../lib/prisma';
-import { requireRole, extractFullScope, buildTeacherWhere } from '../lib/rbac';
+import { requireRole, extractFullScope, buildTeacherWhere, SHARED_INSTITUTE_SHORT_CODES } from '../lib/rbac';
 import { parseIdParam } from '../lib/params';
 import z from 'zod';
 import { audit, extractAuditContext, sanitize } from '../services/auditService';
@@ -37,8 +37,7 @@ export default async function teachersRoutes(server: FastifyInstance) {
         whereClause = {
           OR: [
             { institute: { facultyId: inst.facultyId } },
-            { institute: { shortCode: 'UCP' } },
-            { institute: { shortCode: 'OKPKN' } },
+            ...SHARED_INSTITUTE_SHORT_CODES.map(code => ({ institute: { shortCode: code } })),
             { instituteId: null }
           ]
         };
@@ -100,8 +99,25 @@ export default async function teachersRoutes(server: FastifyInstance) {
       const ctx = extractAuditContext(request);
       await audit(ctx, { action: 'CREATE', entityType: 'Teacher', entityId: teacher.id, newData: sanitize(teacher) });
       return reply.code(201).send({ data: teacher });
-    } catch (err) {
-      return reply.code(400).send({ error: 'Validation/Constraints Error' });
+    } catch (err: any) {
+      server.log.error(err, 'Failed to create teacher');
+      if (err instanceof Object && 'code' in err && err.code === 'P2002') {
+        const target = Array.isArray(err.meta?.target) ? err.meta.target.join(', ') : String(err.meta?.target || '');
+        const email = (request.body as any)?.email;
+        if (target.includes('email') || !target) {
+          return reply.code(409).send({
+            error: email
+              ? `Prowadzący o adresie e-mail "${email}" już istnieje w bazie danych.`
+              : 'Prowadzący o podanym adresie e-mail już istnieje w bazie danych.'
+          });
+        }
+        return reply.code(409).send({ error: `Naruszenie unikalności danych (${target}).` });
+      }
+      if (err instanceof z.ZodError) {
+        const details = err.errors.map(e => e.message).join(', ');
+        return reply.code(400).send({ error: `Błąd walidacji danych: ${details}`, details: err.errors });
+      }
+      return reply.code(400).send({ error: err?.message || 'Wystąpił błąd podczas dodawania prowadzącego.' });
     }
   });
 
@@ -159,10 +175,9 @@ export default async function teachersRoutes(server: FastifyInstance) {
         return reply.code(404).send({ error: 'Nie znaleziono prowadzącego.' });
       }
 
-      // Security check on existing teacher's institute (allow own institute + shared units like UCP and OKPKN)
+      // Security check on existing teacher's institute (allow own institute + shared units like UCP, OKPKN, SJ UAM, Zlecenie)
       if (!sc.isSuperAdmin && !sc.facultyId) {
-        const allowedShared = ['UCP', 'OKPKN'];
-        const isSharedUnit = allowedShared.includes(existingTeacher.institute?.shortCode || '');
+        const isSharedUnit = (SHARED_INSTITUTE_SHORT_CODES as readonly string[]).includes(existingTeacher.institute?.shortCode || '');
         if (existingTeacher.instituteId !== sc.instituteId && !isSharedUnit) {
           return reply.code(403).send({ error: 'Nie masz uprawnień do edycji pracownika z innej jednostki.' });
         }
@@ -196,11 +211,28 @@ export default async function teachersRoutes(server: FastifyInstance) {
       const ctx = extractAuditContext(request);
       await audit(ctx, { action: 'UPDATE', entityType: 'Teacher', entityId: id, oldData: sanitize(oldRecord), newData: sanitize(teacher) });
       return reply.send({ data: teacher });
-    } catch (err) {
+    } catch (err: any) {
+      server.log.error(err, 'Failed to update teacher');
       if (err instanceof Object && 'code' in err && err.code === 'P2025') {
         return reply.code(409).send({ error: 'Błąd zapisu: Dane zostały w międzyczasie zmodyfikowane przez innego użytkownika. Odśwież stronę.' });
       }
-      return reply.code(400).send({ error: 'Validation/Constraints Error or Not Found' });
+      if (err instanceof Object && 'code' in err && err.code === 'P2002') {
+        const target = Array.isArray(err.meta?.target) ? err.meta.target.join(', ') : String(err.meta?.target || '');
+        const email = (request.body as any)?.email;
+        if (target.includes('email') || !target) {
+          return reply.code(409).send({
+            error: email
+              ? `Prowadzący o adresie e-mail "${email}" już istnieje w bazie danych.`
+              : 'Prowadzący o podanym adresie e-mail już istnieje w bazie danych.'
+          });
+        }
+        return reply.code(409).send({ error: `Naruszenie unikalności danych (${target}).` });
+      }
+      if (err instanceof z.ZodError) {
+        const details = err.errors.map(e => e.message).join(', ');
+        return reply.code(400).send({ error: `Błąd walidacji danych: ${details}`, details: err.errors });
+      }
+      return reply.code(400).send({ error: err?.message || 'Wystąpił błąd podczas aktualizacji prowadzącego.' });
     }
   });
 
@@ -216,10 +248,9 @@ export default async function teachersRoutes(server: FastifyInstance) {
         return reply.code(404).send({ error: 'Nie znaleziono prowadzącego.' });
       }
 
-      // Security check: allow deleting own institute teachers + shared units (UCP, OKPKN)
+      // Security check: allow deleting own institute teachers + shared units (UCP, OKPKN, SJ UAM, Zlecenie)
       if (!sc.isSuperAdmin && !sc.facultyId) {
-        const allowedShared = ['UCP', 'OKPKN'];
-        const isSharedUnit = allowedShared.includes(existingTeacher.institute?.shortCode || '');
+        const isSharedUnit = (SHARED_INSTITUTE_SHORT_CODES as readonly string[]).includes(existingTeacher.institute?.shortCode || '');
         if (existingTeacher.instituteId !== sc.instituteId && !isSharedUnit) {
           return reply.code(403).send({ error: 'Nie masz uprawnień do usunięcia pracownika z innej jednostki.' });
         }
@@ -230,8 +261,9 @@ export default async function teachersRoutes(server: FastifyInstance) {
       const ctx = extractAuditContext(request);
       await audit(ctx, { action: 'DELETE', entityType: 'Teacher', entityId: id, oldData: sanitize(oldRecord) });
       return reply.send({ success: true });
-    } catch {
-      return reply.code(400).send({ error: 'Cannot delete teacher' });
+    } catch (err: any) {
+      server.log.error(err, 'Failed to delete teacher');
+      return reply.code(400).send({ error: err?.message || 'Nie można usunąć prowadzącego.' });
     }
   });
 }

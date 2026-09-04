@@ -9,7 +9,7 @@ echo "Pushing database schema..."
 
 # Ensure default admin exists (creates one only if DB has no users)
 echo "Checking for default admin user..."
-npx -y tsx packages/database/ensure-admin.ts || echo "Admin check completed."
+node packages/database/dist/ensure-admin.js || echo "Admin check completed."
 
 # Seed database (only if SEED_DB=true)
 if [ "$SEED_DB" = "true" ]; then

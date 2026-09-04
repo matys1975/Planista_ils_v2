@@ -127,7 +127,7 @@ describe('rbac scope filters', () => {
     expect(buildTeacherInstituteWhere(scope)).toEqual({ teacher: { instituteId: '__NO_ACCESS__' } });
   });
 
-  it('allows institute users to see own, UCP, OKPKN, and already allocated teachers only', () => {
+  it('allows institute users to see own, shared units (UCP, OKPKN, SJ UAM, Zlecenie), and already allocated teachers', () => {
     const scope = extractFullScope(requestWithUser({
       id: 'u1',
       role: 'PLANNER',
@@ -139,6 +139,8 @@ describe('rbac scope filters', () => {
         { instituteId: 'institute-1' },
         { institute: { shortCode: 'UCP' } },
         { institute: { shortCode: 'OKPKN' } },
+        { institute: { shortCode: 'SJ UAM' } },
+        { institute: { shortCode: 'Zlecenie' } },
         { allocations: { some: { course: { instituteId: 'institute-1' } } } },
       ],
     });
@@ -147,6 +149,8 @@ describe('rbac scope filters', () => {
         { teacher: { instituteId: 'institute-1' } },
         { teacher: { institute: { shortCode: 'UCP' } } },
         { teacher: { institute: { shortCode: 'OKPKN' } } },
+        { teacher: { institute: { shortCode: 'SJ UAM' } } },
+        { teacher: { institute: { shortCode: 'Zlecenie' } } },
       ],
     });
   });

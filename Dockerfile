@@ -19,8 +19,9 @@ RUN npm install
 # Copy full source
 COPY . .
 
-# Generate Prisma client
+# Generate Prisma client and build database utilities
 RUN npm run db:generate --workspace=@plan/database
+RUN npm run build --workspace=@plan/database
 
 # Build API (TypeScript → JavaScript)
 RUN npm run build --workspace=apps/api
